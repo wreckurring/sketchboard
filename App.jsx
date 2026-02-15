@@ -1,0 +1,398 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Pencil, Square, Circle, Diamond, MousePointer, Minus, Palette, ZoomIn, ZoomOut, Trash2 } from 'lucide-react';
+
+const generateId = () => Math.random().toString(36).substr(2, 9);
+
+const distance = (x1, y1, x2, y2) => Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+
+const isPointInElement = (x, y, element) => {
+  const { type, x1, y1, x2, y2 } = element;
+  const minX = Math.min(x1, x2);
+  const maxX = Math.max(x1, x2);
+  const minY = Math.min(y1, y2);
+  const maxY = Math.max(y1, y2);
+  
+  if (type === 'pencil') {
+    // Check if point is near any line segment
+    for (let i = 0; i < element.points.length - 1; i++) {
+      const [px1, py1] = element.points[i];
+      const [px2, py2] = element.points[i + 1];
+      if (distanceToLineSegment(x, y, px1, py1, px2, py2) < 5) {
+        return true;
+      }
+    }
+    return false;
+  }
+  
+  if (type === 'circle') {
+    const centerX = (x1 + x2) / 2;
+    const centerY = (y1 + y2) / 2;
+    const radius = distance(x1, y1, x2, y2) / 2;
+    return distance(x, y, centerX, centerY) <= radius;
+  }
+  
+  return x >= minX && x <= maxX && y >= minY && y <= maxY;
+};
+
+const distanceToLineSegment = (x, y, x1, y1, x2, y2) => {
+  const A = x - x1;
+  const B = y - y1;
+  const C = x2 - x1;
+  const D = y2 - y1;
+  const dot = A * C + B * D;
+  const lenSq = C * C + D * D;
+  let param = -1;
+  if (lenSq !== 0) param = dot / lenSq;
+  let xx, yy;
+  if (param < 0) {
+    xx = x1;
+    yy = y1;
+  } else if (param > 1) {
+    xx = x2;
+    yy = y2;
+  } else {
+    xx = x1 + param * C;
+    yy = y1 + param * D;
+  }
+  return distance(x, y, xx, yy);
+};
+
+const drawElement = (ctx, element, isSelected = false) => {
+  const { type, x1, y1, x2, y2, color, points } = element;
+  
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.fillStyle = 'transparent';
+  
+  // Add slight roughness to make it hand-drawn
+  const roughness = 0.5;
+  
+  if (type === 'pencil') {
+    ctx.beginPath();
+    points.forEach(([x, y], index) => {
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+  } else if (type === 'line') {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  } else if (type === 'rectangle') {
+    const width = x2 - x1;
+    const height = y2 - y1;
+    
+    // Draw rough rectangle
+    ctx.beginPath();
+    ctx.moveTo(x1 + Math.random() * roughness, y1 + Math.random() * roughness);
+    ctx.lineTo(x2 + Math.random() * roughness, y1 + Math.random() * roughness);
+    ctx.lineTo(x2 + Math.random() * roughness, y2 + Math.random() * roughness);
+    ctx.lineTo(x1 + Math.random() * roughness, y2 + Math.random() * roughness);
+    ctx.closePath();
+    ctx.stroke();
+  } else if (type === 'circle') {
+    const centerX = (x1 + x2) / 2;
+    const centerY = (y1 + y2) / 2;
+    const radius = distance(x1, y1, x2, y2) / 2;
+    
+    ctx.beginPath();
+    // Draw slightly wobbly circle
+    for (let i = 0; i <= 360; i += 10) {
+      const angle = (i * Math.PI) / 180;
+      const r = radius + (Math.random() - 0.5) * roughness;
+      const x = centerX + r * Math.cos(angle);
+      const y = centerY + r * Math.sin(angle);
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+  } else if (type === 'diamond') {
+    const centerX = (x1 + x2) / 2;
+    const centerY = (y1 + y2) / 2;
+    
+    ctx.beginPath();
+    ctx.moveTo(centerX + Math.random() * roughness, y1 + Math.random() * roughness);
+    ctx.lineTo(x2 + Math.random() * roughness, centerY + Math.random() * roughness);
+    ctx.lineTo(centerX + Math.random() * roughness, y2 + Math.random() * roughness);
+    ctx.lineTo(x1 + Math.random() * roughness, centerY + Math.random() * roughness);
+    ctx.closePath();
+    ctx.stroke();
+  }
+  
+  // Draw selection box
+  if (isSelected) {
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    const minX = Math.min(x1, x2);
+    const maxX = Math.max(x1, x2);
+    const minY = Math.min(y1, y2);
+    const maxY = Math.max(y1, y2);
+    const padding = 8;
+    ctx.strokeRect(minX - padding, minY - padding, maxX - minX + padding * 2, maxY - minY + padding * 2);
+    ctx.setLineDash([]);
+  }
+};
+
+function Sketchboard() {
+  const canvasRef = useRef(null);
+  const [tool, setTool] = useState('select');
+  const [elements, setElements] = useState([]);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
+  const [currentColor, setCurrentColor] = useState('#000000');
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [scale, setScale] = useState(1);
+  const [isPanning, setIsPanning] = useState(false);
+  const [startPanPoint, setStartPanPoint] = useState({ x: 0, y: 0 });
+  
+  const getMousePos = (e) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left - panOffset.x) / scale,
+      y: (e.clientY - rect.top - panOffset.y) / scale
+    };
+  };
+  
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.save();
+    ctx.translate(panOffset.x, panOffset.y);
+    ctx.scale(scale, scale);
+    
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 0.5;
+    const gridSize = 20;
+    for (let x = 0; x < canvas.width / scale; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height / scale);
+      ctx.stroke();
+    }
+    for (let y = 0; y < canvas.height / scale; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width / scale, y);
+      ctx.stroke();
+    }
+    
+    elements.forEach(element => {
+      drawElement(ctx, element, element.id === selectedId);
+    });
+    
+    ctx.restore();
+  }, [elements, selectedId, panOffset, scale]);
+  
+  const handleMouseDown = (e) => {
+    const { x, y } = getMousePos(e);
+    
+    // Check if we're using hand tool (space key)
+    if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+      setIsPanning(true);
+      setStartPanPoint({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
+      return;
+    }
+    
+    if (tool === 'select') {
+      const clickedElement = [...elements].reverse().find(el => isPointInElement(x, y, el));
+      setSelectedId(clickedElement ? clickedElement.id : null);
+    } else {
+      setIsDrawing(true);
+      const newElement = {
+        id: generateId(),
+        type: tool,
+        x1: x,
+        y1: y,
+        x2: x,
+        y2: y,
+        color: currentColor,
+        points: tool === 'pencil' ? [[x, y]] : []
+      };
+      setElements(prev => [...prev, newElement]);
+      setSelectedId(newElement.id);
+    }
+  };
+  
+  const handleMouseMove = (e) => {
+    if (isPanning) {
+      setPanOffset({
+        x: e.clientX - startPanPoint.x,
+        y: e.clientY - startPanPoint.y
+      });
+      return;
+    }
+    
+    if (!isDrawing) return;
+    
+    const { x, y } = getMousePos(e);
+    setElements(prev => {
+      const updated = [...prev];
+      const current = updated[updated.length - 1];
+      
+      if (current.type === 'pencil') {
+        current.points.push([x, y]);
+      } else {
+        current.x2 = x;
+        current.y2 = y;
+      }
+      
+      return updated;
+    });
+  };
+  
+  const handleMouseUp = () => {
+    setIsDrawing(false);
+    setIsPanning(false);
+  };
+  
+  const handleDelete = () => {
+    if (selectedId) {
+      setElements(prev => prev.filter(el => el.id !== selectedId));
+      setSelectedId(null);
+    }
+  };
+  
+  const handleZoomIn = () => setScale(prev => Math.min(prev * 1.2, 5));
+  const handleZoomOut = () => setScale(prev => Math.max(prev / 1.2, 0.1));
+  
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        handleDelete();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedId]);
+  
+  const tools = [
+    { name: 'select', icon: MousePointer, label: 'Select' },
+    { name: 'rectangle', icon: Square, label: 'Rectangle' },
+    { name: 'circle', icon: Circle, label: 'Circle' },
+    { name: 'diamond', icon: Diamond, label: 'Diamond' },
+    { name: 'line', icon: Minus, label: 'Line' },
+    { name: 'pencil', icon: Pencil, label: 'Pencil' }
+  ];
+  
+  return (
+    <div className="h-screen w-screen flex flex-col bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-800">Sketchboard</h1>
+          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">Phase 1</span>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleZoomOut}
+            className="p-2 hover:bg-gray-100 rounded-lg transition"
+            title="Zoom Out"
+          >
+            <ZoomOut size={20} />
+          </button>
+          <span className="text-sm font-medium text-gray-600 min-w-[60px] text-center">
+            {Math.round(scale * 100)}%
+          </span>
+          <button
+            onClick={handleZoomIn}
+            className="p-2 hover:bg-gray-100 rounded-lg transition"
+            title="Zoom In"
+          >
+            <ZoomIn size={20} />
+          </button>
+        </div>
+      </header>
+      
+      {/* Toolbar */}
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-4 shadow-sm">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+          {tools.map(({ name, icon: Icon, label }) => (
+            <button
+              key={name}
+              onClick={() => setTool(name)}
+              className={`p-2 rounded-lg transition ${
+                tool === name 
+                  ? 'bg-blue-500 text-white shadow-md' 
+                  : 'hover:bg-gray-200 text-gray-700'
+              }`}
+              title={label}
+            >
+              <Icon size={20} />
+            </button>
+          ))}
+        </div>
+        
+        <div className="h-8 w-px bg-gray-300" />
+        
+        <div className="flex items-center gap-2">
+          <Palette size={20} className="text-gray-600" />
+          <input
+            type="color"
+            value={currentColor}
+            onChange={(e) => setCurrentColor(e.target.value)}
+            className="w-12 h-8 rounded cursor-pointer border-2 border-gray-300"
+            title="Stroke Color"
+          />
+        </div>
+        
+        <div className="h-8 w-px bg-gray-300" />
+        
+        <button
+          onClick={handleDelete}
+          disabled={!selectedId}
+          className={`p-2 rounded-lg transition ${
+            selectedId 
+              ? 'hover:bg-red-50 text-red-600' 
+              : 'text-gray-400 cursor-not-allowed'
+          }`}
+          title="Delete (Del)"
+        >
+          <Trash2 size={20} />
+        </button>
+        
+        <div className="flex-1" />
+        
+        <div className="text-sm text-gray-500">
+          {selectedId ? 'Element selected' : 'Select or draw on canvas'} • {elements.length} elements
+        </div>
+      </div>
+      
+      {/* Canvas */}
+      <div className="flex-1 overflow-hidden">
+        <canvas
+          ref={canvasRef}
+          width={window.innerWidth}
+          height={window.innerHeight - 120}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          className="cursor-crosshair bg-white"
+          style={{ cursor: isPanning ? 'grabbing' : 'crosshair' }}
+        />
+      </div>
+      
+      {/* Instructions */}
+      <div className="bg-gray-800 text-white px-4 py-2 text-sm flex items-center justify-center gap-8">
+        <span>💡 <strong>Tip:</strong> Select a tool and draw on canvas</span>
+        <span>⌨️ <strong>Delete:</strong> Press Del key</span>
+        <span>🖱️ <strong>Pan:</strong> Shift + Drag or Middle Click</span>
+      </div>
+    </div>
+  );
+}
+
+export default Sketchboard;

@@ -1,0 +1,33 @@
+{
+  "name": "sketchboard-phase1",
+  "version": "1.0.0",
+  "description": "Collaborative whiteboard inspired by Excalidraw - Phase 1: Foundation & Basic Drawing",
+  "main": "sketchboard-phase1.jsx",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "whiteboard",
+    "canvas",
+    "drawing",
+    "excalidraw",
+    "collaboration",
+    "react"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "lucide-react": "^0.263.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.0.0",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.24",
+    "tailwindcss": "^3.3.2",
+    "vite": "^4.3.9"
+  }
+}
