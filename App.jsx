@@ -114,6 +114,7 @@ const drawArrow = (ctx, x1, y1, x2, y2, color, strokeWidth) => {
   ctx.fill();
 };
 
+
 const drawElement = (ctx, element, isSelected = false) => {
   const { type, x1, y1, x2, y2, color, points, strokeWidth = 2, fillColor, opacity = 1 } = element;
   
