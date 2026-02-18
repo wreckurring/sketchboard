@@ -1,63 +1,71 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Toolbar from './components/Toolbar';
 import TextEditor from './components/TextEditor';
+import ExportMenu from './components/ExportMenu';
 import { useHistory } from './hooks/useHistory';
-import {
-  generateId, isPointInElement, getResizeHandle,
-  drawElement, drawGrid, snapToGrid as snap
-} from './utils/drawing';
+import { generateId, isPointInElement, getResizeHandle, drawElement, drawGrid, snapToGrid as snap } from './utils/drawing';
+import { saveToLocalStorage, loadFromLocalStorage, savePreferences, loadPreferences, clearLocalStorage } from './utils/storage';
+import { importFromJSON, exportToJSON, downloadFile } from './utils/export';
 
 const GRID_SIZE = 20;
-
-// Keyboard shortcut for tool name
 const KEY_TOOL_MAP = {
-  v: 'select', h: 'hand',
-  r: 'rectangle', c: 'circle', d: 'diamond',
-  l: 'line', a: 'arrow', p: 'pencil',
-  t: 'text', e: 'eraser',
+  v: 'select', h: 'hand', r: 'rectangle', c: 'circle', d: 'diamond',
+  l: 'line', a: 'arrow', p: 'pencil', t: 'text', e: 'eraser',
 };
 
 export default function App() {
-  const canvasRef     = useRef(null);
-  const rafRef        = useRef(null);
+  const canvasRef = useRef(null);
+  const rafRef = useRef(null);
+  const autosaveTimer = useRef(null);
 
+  const [isDark, setIsDark] = useState(() => loadPreferences().theme === 'dark');
   const { state: elements, setState: setElements, undo, redo, canUndo, canRedo } = useHistory([]);
 
-  // Tool state
-  const [tool,        setTool]        = useState('select');
-  const [isDrawing,   setIsDrawing]   = useState(false);
-  const [action,      setAction]      = useState('none');
+  const [tool, setTool] = useState('select');
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [action, setAction] = useState('none');
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [selectionBox, setSelectionBox] = useState(null);
+  const [dragStart, setDragStart] = useState(null);
+  const [resizeHandle, setResizeHandle] = useState(null);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [scale, setScale] = useState(1);
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
-  // Selection
-  const [selectedIds,   setSelectedIds]   = useState([]);
-  const [selectionBox,  setSelectionBox]  = useState(null);
-  const [dragStart,     setDragStart]     = useState(null);
-  const [resizeHandle,  setResizeHandle]  = useState(null);
+  const [currentColor, setCurrentColor] = useState('#1e1e1e');
+  const [fillColor, setFillColor] = useState('transparent');
+  const [strokeWidth, setStrokeWidth] = useState(2);
+  const [lineStyle, setLineStyle] = useState('solid');
+  const [fontSize, setFontSize] = useState(20);
+  const [fontFamily, setFontFamily] = useState('Caveat');
+  const [textAlign, setTextAlign] = useState('left');
+  const [snapEnabled, setSnapEnabled] = useState(false);
 
-  // Viewport
-  const [panOffset,  setPanOffset]  = useState({ x: 0, y: 0 });
-  const [scale,      setScale]      = useState(1);
-  const [isPanning,  setIsPanning]  = useState(false);
-  const [panStart,   setPanStart]   = useState({ x: 0, y: 0 });
+  const [editingText, setEditingText] = useState(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
-  // Style options
-  const [currentColor,  setCurrentColor]  = useState('#1e1e1e');
-  const [fillColor,     setFillColor]     = useState('transparent');
-  const [strokeWidth,   setStrokeWidth]   = useState(2);
-  const [lineStyle,     setLineStyle]     = useState('solid');
-  const [fontSize,      setFontSize]      = useState(20);
-  const [fontFamily,    setFontFamily]    = useState('Caveat');
-  const [textAlign,     setTextAlign]     = useState('left');
-  const [snapEnabled,   setSnapEnabled]   = useState(false);
+  useEffect(() => {
+    const saved = loadFromLocalStorage();
+    if (saved && saved.length > 0) setElements(saved);
+  }, []);
 
-  // Text editor
-  const [editingText, setEditingText] = useState(null); // element being edited
+  useEffect(() => {
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(() => {
+      saveToLocalStorage(elements);
+    }, 2000);
+  }, [elements]);
 
+  useEffect(() => {
+    document.body.className = isDark ? 'bg-gray-900' : 'bg-gray-50';
+    savePreferences({ theme: isDark ? 'dark' : 'light' });
+  }, [isDark]);
 
   const getMousePos = useCallback((e) => {
     const rect = canvasRef.current.getBoundingClientRect();
     let x = (e.clientX - rect.left - panOffset.x) / scale;
-    let y = (e.clientY - rect.top  - panOffset.y) / scale;
+    let y = (e.clientY - rect.top - panOffset.y) / scale;
     if (snapEnabled) {
       x = snap(x, GRID_SIZE);
       y = snap(y, GRID_SIZE);
@@ -86,19 +94,21 @@ export default function App() {
       const ctx = canvas.getContext('2d');
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = isDark ? '#1e1e1e' : '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
       ctx.save();
       ctx.translate(panOffset.x, panOffset.y);
       ctx.scale(scale, scale);
 
       drawGrid(ctx, canvas.width, canvas.height, scale, panOffset, GRID_SIZE);
-
       elements.forEach(el => drawElement(ctx, el, selectedIds.includes(el.id)));
 
       if (selectionBox) {
         ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth   = 1 / scale;
+        ctx.lineWidth = 1 / scale;
         ctx.setLineDash([5 / scale, 4 / scale]);
-        ctx.fillStyle   = 'rgba(59,130,246,0.05)';
+        ctx.fillStyle = 'rgba(59,130,246,0.05)';
         const { x1, y1, x2, y2 } = selectionBox;
         ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
         ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
@@ -107,8 +117,7 @@ export default function App() {
 
       ctx.restore();
     });
-  }, [elements, selectedIds, panOffset, scale, selectionBox]);
-
+  }, [elements, selectedIds, panOffset, scale, selectionBox, isDark]);
 
   const handleMouseDown = (e) => {
     if (editingText) return;
@@ -122,7 +131,6 @@ export default function App() {
 
     if (tool === 'select') {
       const hit = [...elements].reverse().find(el => isPointInElement(x, y, el));
-
       if (hit) {
         const handle = getResizeHandle(x, y, hit);
         if (handle) {
@@ -133,9 +141,7 @@ export default function App() {
           setAction('moving');
           setDragStart({ x, y });
           if (e.ctrlKey || e.metaKey) {
-            setSelectedIds(prev =>
-              prev.includes(hit.id) ? prev.filter(id => id !== hit.id) : [...prev, hit.id]
-            );
+            setSelectedIds(prev => prev.includes(hit.id) ? prev.filter(id => id !== hit.id) : [...prev, hit.id]);
           } else {
             if (!selectedIds.includes(hit.id)) setSelectedIds([hit.id]);
           }
@@ -149,12 +155,7 @@ export default function App() {
     }
 
     if (tool === 'text') {
-      const el = {
-        ...newElementDefaults(),
-        type: 'text',
-        x1: x, y1: y, x2: x + 200, y2: y + 30,
-        text: '',
-      };
+      const el = { ...newElementDefaults(), type: 'text', x1: x, y1: y, x2: x + 200, y2: y + 30, text: '' };
       setElements(prev => [...prev, el]);
       setEditingText(el);
       return;
@@ -181,29 +182,21 @@ export default function App() {
 
     if (action === 'selecting') {
       setSelectionBox(prev => prev ? { ...prev, x2: x, y2: y } : null);
-      return;
-    }
-
-    if (action === 'moving' && dragStart) {
-      const dx = x - dragStart.x;
-      const dy = y - dragStart.y;
+    } else if (action === 'moving' && dragStart) {
+      const dx = x - dragStart.x, dy = y - dragStart.y;
       setElements(prev =>
         prev.map(el =>
           selectedIds.includes(el.id)
             ? {
                 ...el,
-                x1: el.x1 + dx, y1: el.y1 + dy,
-                x2: el.x2 + dx, y2: el.y2 + dy,
+                x1: el.x1 + dx, y1: el.y1 + dy, x2: el.x2 + dx, y2: el.y2 + dy,
                 points: el.points?.map(([px, py]) => [px + dx, py + dy]),
               }
             : el
         )
       );
       setDragStart({ x, y });
-      return;
-    }
-
-    if (action === 'resizing' && selectedIds.length === 1) {
+    } else if (action === 'resizing' && selectedIds.length === 1) {
       setElements(prev =>
         prev.map(el => {
           if (el.id !== selectedIds[0]) return el;
@@ -215,10 +208,7 @@ export default function App() {
           return { ...el, x1, y1, x2, y2 };
         })
       );
-      return;
-    }
-
-    if (isDrawing) {
+    } else if (isDrawing) {
       setElements(prev => {
         const updated = [...prev];
         const current = updated[updated.length - 1];
@@ -238,7 +228,6 @@ export default function App() {
       const { x1, y1, x2, y2 } = selectionBox;
       const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
       const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
-
       const ids = elements
         .filter(el => {
           const eMinX = Math.min(el.x1, el.x2), eMaxX = Math.max(el.x1, el.x2);
@@ -246,7 +235,6 @@ export default function App() {
           return eMinX >= minX && eMaxX <= maxX && eMinY >= minY && eMaxY <= maxY;
         })
         .map(el => el.id);
-
       setSelectedIds(ids);
       setSelectionBox(null);
     }
@@ -258,18 +246,15 @@ export default function App() {
     setResizeHandle(null);
   };
 
-  // Double-click on text element to re-open editor
   const handleDoubleClick = (e) => {
     const { x, y } = getMousePos(e);
     const hit = [...elements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
     if (hit) setEditingText(hit);
   };
 
-  // Scroll to zoom
   const handleWheel = (e) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setScale(s => Math.max(0.1, Math.min(8, s * delta)));
+    setScale(s => Math.max(0.1, Math.min(8, s * (e.deltaY > 0 ? 0.9 : 1.1))));
   };
 
   useEffect(() => {
@@ -278,16 +263,12 @@ export default function App() {
     return () => canvas.removeEventListener('wheel', handleWheel);
   }, []);
 
-
   const commitText = (value) => {
     if (!editingText) return;
     if (!value.trim()) {
-      // Empty text → remove the element
       setElements(prev => prev.filter(el => el.id !== editingText.id));
     } else {
-      setElements(prev =>
-        prev.map(el => el.id === editingText.id ? { ...el, text: value } : el)
-      );
+      setElements(prev => prev.map(el => el.id === editingText.id ? { ...el, text: value } : el));
     }
     setEditingText(null);
   };
@@ -296,7 +277,6 @@ export default function App() {
     setElements(prev => prev.filter(el => el.id !== editingText.id));
     setEditingText(null);
   };
-
 
   const handleDelete = useCallback(() => {
     if (selectedIds.length === 0) return;
@@ -311,8 +291,7 @@ export default function App() {
       .map(el => ({
         ...el,
         id: generateId(),
-        x1: el.x1 + 20, y1: el.y1 + 20,
-        x2: el.x2 + 20, y2: el.y2 + 20,
+        x1: el.x1 + 20, y1: el.y1 + 20, x2: el.x2 + 20, y2: el.y2 + 20,
         points: el.points?.map(([px, py]) => [px + 20, py + 20]),
       }));
     setElements(prev => [...prev, ...copies]);
@@ -321,26 +300,46 @@ export default function App() {
 
   const bringToFront = useCallback(() => {
     const selected = elements.filter(el => selectedIds.includes(el.id));
-    const rest     = elements.filter(el => !selectedIds.includes(el.id));
+    const rest = elements.filter(el => !selectedIds.includes(el.id));
     setElements([...rest, ...selected]);
   }, [selectedIds, elements]);
 
   const sendToBack = useCallback(() => {
     const selected = elements.filter(el => selectedIds.includes(el.id));
-    const rest     = elements.filter(el => !selectedIds.includes(el.id));
+    const rest = elements.filter(el => !selectedIds.includes(el.id));
     setElements([...selected, ...rest]);
   }, [selectedIds, elements]);
 
+  const handleSave = () => {
+    const json = exportToJSON(elements);
+    downloadFile(json, `sketchboard-${Date.now()}.sketchboard`, 'application/json');
+  };
+
+  const handleLoad = (jsonString) => {
+    const loaded = importFromJSON(jsonString);
+    if (loaded.length > 0) {
+      setElements(loaded);
+      setSelectedIds([]);
+    }
+  };
+
+  const handleClear = () => {
+    if (window.confirm('Clear entire canvas?')) {
+      setElements([]);
+      setSelectedIds([]);
+      clearLocalStorage();
+    }
+  };
 
   useEffect(() => {
     const onKey = (e) => {
       if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
-
       const ctrl = e.ctrlKey || e.metaKey;
 
       if (ctrl && e.key === 'z') { e.preventDefault(); setElements(undo()); }
       if (ctrl && e.key === 'y') { e.preventDefault(); setElements(redo()); }
       if (ctrl && e.key === 'd') { e.preventDefault(); handleCopy(); }
+      if (ctrl && e.key === 's') { e.preventDefault(); handleSave(); }
       if (ctrl && e.key === 'a') {
         e.preventDefault();
         setSelectedIds(elements.map(el => el.id));
@@ -357,18 +356,16 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedIds, elements, undo, redo, handleDelete, handleCopy]);
 
-
   const cursorStyle = () => {
     if (isPanning || tool === 'hand') return 'grab';
-    if (tool === 'text')   return 'text';
+    if (tool === 'text') return 'text';
     if (tool === 'eraser') return 'cell';
     if (action === 'moving') return 'move';
     return 'crosshair';
   };
 
-
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-gray-50 select-none">
+    <div className={`h-screen w-screen flex flex-col overflow-hidden select-none ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <Toolbar
         tool={tool} setTool={setTool}
         currentColor={currentColor} setCurrentColor={setCurrentColor}
@@ -380,10 +377,17 @@ export default function App() {
         textAlign={textAlign} setTextAlign={setTextAlign}
         snapToGrid={snapEnabled} setSnapToGrid={setSnapEnabled}
         scale={scale} setScale={setScale}
-        canUndo={canUndo} canRedo={canRedo} onUndo={() => setElements(undo())} onRedo={() => setElements(redo())}
+        canUndo={canUndo} canRedo={canRedo}
+        onUndo={() => setElements(undo())}
+        onRedo={() => setElements(redo())}
         selectedCount={selectedIds.length} elementCount={elements.length}
         onDelete={handleDelete} onCopy={handleCopy}
         onBringToFront={bringToFront} onSendToBack={sendToBack}
+        isDark={isDark} onToggleTheme={() => setIsDark(d => !d)}
+        onExport={() => setShowExportMenu(true)}
+        onSave={handleSave}
+        onLoad={handleLoad}
+        onClear={handleClear}
       />
 
       <div className="flex-1 relative overflow-hidden">
@@ -395,7 +399,7 @@ export default function App() {
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onDoubleClick={handleDoubleClick}
-          className="block bg-white"
+          className="block"
           style={{ cursor: cursorStyle() }}
         />
 
@@ -410,17 +414,23 @@ export default function App() {
         )}
       </div>
 
-      {/* Status bar */}
-      <div className="bg-gray-900 text-gray-400 px-4 py-1.5 text-xs flex items-center gap-6">
-        <span><kbd className="bg-gray-700 text-gray-200 px-1 rounded">V</kbd> Select</span>
-        <span><kbd className="bg-gray-700 text-gray-200 px-1 rounded">T</kbd> Text</span>
-        <span><kbd className="bg-gray-700 text-gray-200 px-1 rounded">E</kbd> Eraser</span>
-        <span><kbd className="bg-gray-700 text-gray-200 px-1 rounded">H</kbd> Hand</span>
-        <span><kbd className="bg-gray-700 text-gray-200 px-1 rounded">Ctrl+A</kbd> Select All</span>
-        <span><kbd className="bg-gray-700 text-gray-200 px-1 rounded">Scroll</kbd> Zoom</span>
-        <span><kbd className="bg-gray-700 text-gray-200 px-1 rounded">Esc</kbd> Deselect</span>
+      {showExportMenu && (
+        <ExportMenu
+          elements={elements}
+          isDark={isDark}
+          onClose={() => setShowExportMenu(false)}
+        />
+      )}
+
+      <div className={`${isDark ? 'bg-gray-950 text-gray-400' : 'bg-gray-900 text-gray-400'} px-4 py-1.5 text-xs flex items-center gap-6`}>
+        <span><kbd className={`${isDark ? 'bg-gray-800' : 'bg-gray-700'} text-gray-200 px-1 rounded`}>V</kbd> Select</span>
+        <span><kbd className={`${isDark ? 'bg-gray-800' : 'bg-gray-700'} text-gray-200 px-1 rounded`}>T</kbd> Text</span>
+        <span><kbd className={`${isDark ? 'bg-gray-800' : 'bg-gray-700'} text-gray-200 px-1 rounded`}>E</kbd> Eraser</span>
+        <span><kbd className={`${isDark ? 'bg-gray-800' : 'bg-gray-700'} text-gray-200 px-1 rounded`}>H</kbd> Hand</span>
+        <span><kbd className={`${isDark ? 'bg-gray-800' : 'bg-gray-700'} text-gray-200 px-1 rounded`}>Ctrl+S</kbd> Save</span>
+        <span><kbd className={`${isDark ? 'bg-gray-800' : 'bg-gray-700'} text-gray-200 px-1 rounded`}>Scroll</kbd> Zoom</span>
         <div className="flex-1" />
-        <span>x: {Math.round((0 - panOffset.x) / scale)} y: {Math.round((0 - panOffset.y) / scale)}</span>
+        <span>Auto-save enabled</span>
       </div>
     </div>
   );
