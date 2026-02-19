@@ -1,11 +1,15 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Toolbar from './components/Toolbar';
 import TextEditor from './components/TextEditor';
 import ExportMenu from './components/ExportMenu';
+import ShareModal from './components/ShareModal';
+import CollaborationPanel from './components/CollaborationPanel';
 import { useHistory } from './hooks/useHistory';
+import { useCollaboration } from './hooks/useCollaboration';
 import { generateId, isPointInElement, getResizeHandle, drawElement, drawGrid, snapToGrid as snap } from './utils/drawing';
 import { saveToLocalStorage, loadFromLocalStorage, savePreferences, loadPreferences, clearLocalStorage } from './utils/storage';
 import { importFromJSON, exportToJSON, downloadFile } from './utils/export';
+import { generateSessionId, getUserColor } from './utils/collaboration';
 
 const GRID_SIZE = 20;
 const KEY_TOOL_MAP = {
@@ -20,6 +24,17 @@ export default function App() {
 
   const [isDark, setIsDark] = useState(() => loadPreferences().theme === 'dark');
   const { state: elements, setState: setElements, undo, redo, canUndo, canRedo } = useHistory([]);
+
+  const [sessionId, setSessionId] = useState(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('session') || generateSessionId();
+  });
+
+  const { isCollaborating, users, cursors, currentUserId, updateCursor } = useCollaboration(
+    sessionId,
+    elements,
+    setElements
+  );
 
   const [tool, setTool] = useState('select');
   const [isDrawing, setIsDrawing] = useState(false);
@@ -44,23 +59,34 @@ export default function App() {
 
   const [editingText, setEditingText] = useState(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   useEffect(() => {
-    const saved = loadFromLocalStorage();
-    if (saved && saved.length > 0) setElements(saved);
-  }, []);
+    if (!isCollaborating) {
+      const saved = loadFromLocalStorage();
+      if (saved && saved.length > 0) setElements(saved);
+    }
+  }, [isCollaborating]);
 
   useEffect(() => {
-    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(() => {
-      saveToLocalStorage(elements);
-    }, 2000);
-  }, [elements]);
+    if (!isCollaborating && elements.length > 0) {
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = setTimeout(() => {
+        saveToLocalStorage(elements);
+      }, 2000);
+    }
+  }, [elements, isCollaborating]);
 
   useEffect(() => {
     document.body.className = isDark ? 'bg-gray-900' : 'bg-gray-50';
     savePreferences({ theme: isDark ? 'dark' : 'light' });
   }, [isDark]);
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+    }
+  }, []);
 
   const getMousePos = useCallback((e) => {
     const rect = canvasRef.current.getBoundingClientRect();
@@ -85,6 +111,24 @@ export default function App() {
     opacity: 1,
   });
 
+  const visibleElements = useMemo(() => {
+    if (!canvasRef.current) return elements;
+    const canvas = canvasRef.current;
+    const viewportMinX = -panOffset.x / scale;
+    const viewportMaxX = (canvas.width - panOffset.x) / scale;
+    const viewportMinY = -panOffset.y / scale;
+    const viewportMaxY = (canvas.height - panOffset.y) / scale;
+
+    return elements.filter(el => {
+      const minX = Math.min(el.x1, el.x2);
+      const maxX = Math.max(el.x1, el.x2);
+      const minY = Math.min(el.y1, el.y2);
+      const maxY = Math.max(el.y1, el.y2);
+      
+      return !(maxX < viewportMinX || minX > viewportMaxX || maxY < viewportMinY || minY > viewportMaxY);
+    });
+  }, [elements, panOffset, scale]);
+
   useEffect(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
 
@@ -102,7 +146,7 @@ export default function App() {
       ctx.scale(scale, scale);
 
       drawGrid(ctx, canvas.width, canvas.height, scale, panOffset, GRID_SIZE);
-      elements.forEach(el => drawElement(ctx, el, selectedIds.includes(el.id)));
+      visibleElements.forEach(el => drawElement(ctx, el, selectedIds.includes(el.id)));
 
       if (selectionBox) {
         ctx.strokeStyle = '#3b82f6';
@@ -115,9 +159,25 @@ export default function App() {
         ctx.setLineDash([]);
       }
 
+      cursors.forEach(([userId, cursor]) => {
+        if (userId !== currentUserId) {
+          const user = users.find(u => u.id === userId);
+          if (user) {
+            ctx.fillStyle = user.color;
+            ctx.beginPath();
+            ctx.arc(cursor.x, cursor.y, 6 / scale, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = isDark ? '#fff' : '#000';
+            ctx.font = `${12 / scale}px sans-serif`;
+            ctx.fillText(user.name, cursor.x + 10 / scale, cursor.y - 10 / scale);
+          }
+        }
+      });
+
       ctx.restore();
     });
-  }, [elements, selectedIds, panOffset, scale, selectionBox, isDark]);
+  }, [visibleElements, selectedIds, panOffset, scale, selectionBox, isDark, cursors, users, currentUserId]);
 
   const handleMouseDown = (e) => {
     if (editingText) return;
@@ -173,12 +233,16 @@ export default function App() {
   };
 
   const handleMouseMove = (e) => {
+    const { x, y } = getMousePos(e);
+    
+    if (isCollaborating) {
+      updateCursor(x, y);
+    }
+
     if (isPanning) {
       setPanOffset({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
       return;
     }
-
-    const { x, y } = getMousePos(e);
 
     if (action === 'selecting') {
       setSelectionBox(prev => prev ? { ...prev, x2: x, y2: y } : null);
@@ -388,6 +452,8 @@ export default function App() {
         onSave={handleSave}
         onLoad={handleLoad}
         onClear={handleClear}
+        onShare={() => setShowShareModal(true)}
+        isCollaborating={isCollaborating}
       />
 
       <div className="flex-1 relative overflow-hidden">
@@ -412,6 +478,12 @@ export default function App() {
             onCancel={cancelText}
           />
         )}
+
+        <CollaborationPanel
+          users={users}
+          currentUserId={currentUserId}
+          isDark={isDark}
+        />
       </div>
 
       {showExportMenu && (
@@ -419,6 +491,14 @@ export default function App() {
           elements={elements}
           isDark={isDark}
           onClose={() => setShowExportMenu(false)}
+        />
+      )}
+
+      {showShareModal && (
+        <ShareModal
+          sessionId={sessionId}
+          isDark={isDark}
+          onClose={() => setShowShareModal(false)}
         />
       )}
 
@@ -430,7 +510,11 @@ export default function App() {
         <span><kbd className={`${isDark ? 'bg-gray-800' : 'bg-gray-700'} text-gray-200 px-1 rounded`}>Ctrl+S</kbd> Save</span>
         <span><kbd className={`${isDark ? 'bg-gray-800' : 'bg-gray-700'} text-gray-200 px-1 rounded`}>Scroll</kbd> Zoom</span>
         <div className="flex-1" />
-        <span>Auto-save enabled</span>
+        {isCollaborating ? (
+          <span className="text-blue-400">🔗 Collaborative session active</span>
+        ) : (
+          <span>💾 Auto-save enabled</span>
+        )}
       </div>
     </div>
   );

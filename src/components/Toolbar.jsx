@@ -3,7 +3,7 @@ import {
   MousePointer, Square, Circle, Diamond, Minus, ArrowUpRight,
   Pencil, Type, Eraser, Hand, Trash2, Copy,
   Undo2, Redo2, ZoomIn, ZoomOut, Layers, AlignLeft, AlignCenter, AlignRight,
-  Download, Upload, FileJson, Save
+  Download, Upload, Save, Share2
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 
@@ -39,40 +39,53 @@ export default function Toolbar({
   selectedCount, elementCount,
   onDelete, onCopy, onBringToFront, onSendToBack,
   isDark, onToggleTheme,
-  onExport, onSave, onLoad, onClear,
+  onExport, onSave, onLoad, onClear, onShare,
+  isCollaborating,
 }) {
   const fileInputRef = useRef(null);
-
-  const handleLoadClick = () => fileInputRef.current?.click();
-
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (ev) => onLoad(ev.target.result);
-      reader.readAsText(file);
-    }
-  };
 
   return (
     <div className={`${isDark ? 'bg-gray-800 text-white border-gray-700' : 'bg-white border-gray-200'} border-b shadow-sm`}>
       <div className={`px-4 py-2 flex items-center justify-between ${isDark ? 'border-gray-700' : 'border-gray-100'} border-b`}>
         <div className="flex items-center gap-3">
           <h1 className={`text-xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>Sketchboard</h1>
-          <span className={`text-xs ${isDark ? 'bg-orange-900 text-orange-200' : 'bg-orange-100 text-orange-700'} px-2 py-0.5 rounded-full font-medium`}>Phase 4</span>
+          {isCollaborating && (
+            <span className={`text-xs ${isDark ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-600'} px-2 py-0.5 rounded-full font-medium flex items-center gap-1`}>
+              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+              Live
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
+          <button onClick={onShare} title="Share & Collaborate"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition ${
+              isDark ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'
+            }`}>
+            <Share2 size={16} />
+            Share
+          </button>
+
+          <div className={`w-px h-5 ${isDark ? 'bg-gray-600' : 'bg-gray-200'} mx-1`} />
+
           <button onClick={onSave} title="Save (Ctrl+S)"
             className={`p-1.5 rounded ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition`}>
             <Save size={18} />
           </button>
-          <button onClick={handleLoadClick} title="Open File"
+          <button onClick={() => fileInputRef.current?.click()} title="Open File"
             className={`p-1.5 rounded ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition`}>
             <Upload size={18} />
           </button>
           <input ref={fileInputRef} type="file" accept=".json,.sketchboard,.excalidraw" 
-            onChange={handleFileChange} className="hidden" />
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => onLoad(ev.target.result);
+                reader.readAsText(file);
+              }
+            }}
+            className="hidden" />
           
           <button onClick={onExport} title="Export"
             className={`p-1.5 rounded ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition`}>
