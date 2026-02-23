@@ -1,67 +1,80 @@
 import { useState, useEffect, useRef } from 'react';
-import { CollaborationManager, generateUserId, subscribeToChanges, broadcastChange } from '../utils/collaboration';
+import { socket, generateUserId, getUserColor } from '../utils/collaboration';
 
 export function useCollaboration(sessionId, elements, setElements) {
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [users, setUsers] = useState([]);
   const [cursors, setCursors] = useState([]);
-  const managerRef = useRef(null);
-  const lastTimestampRef = useRef(0);
+  
   const userIdRef = useRef(generateUserId());
-  const syncIntervalRef = useRef(null);
+  const cursorsMap = useRef(new Map());
+  const isRemoteUpdate = useRef(false);
 
   useEffect(() => {
-    if (!sessionId || !window.storage) return;
+    if (!sessionId) {
+      setIsCollaborating(false);
+      if (socket.connected) socket.disconnect();
+      return;
+    }
 
     setIsCollaborating(true);
+    
+    if (!socket.connected) {
+      socket.connect();
+    }
+    
+    socket.emit('join-session', { sessionId, userId: userIdRef.current });
 
-    const manager = new CollaborationManager(
-      sessionId,
-      userIdRef.current,
-      ({ users: newUsers, cursors: newCursors }) => {
-        if (newUsers) setUsers(newUsers);
-        if (newCursors) setCursors(newCursors);
+    socket.on('canvas-update', (data) => {
+      if (data.userId !== userIdRef.current) {
+        isRemoteUpdate.current = true;
+        setElements(data.elements || []);
       }
-    );
+    });
 
-    manager.init();
-    managerRef.current = manager;
-
-    syncIntervalRef.current = setInterval(async () => {
-      await subscribeToChanges(sessionId, lastTimestampRef.current, (newElements, userId, timestamp) => {
-        if (userId !== userIdRef.current) {
-          setElements(newElements);
-          lastTimestampRef.current = timestamp;
-        }
-      });
-    }, 1000);
+    socket.on('cursor-update', (data) => {
+      if (data.userId !== userIdRef.current) {
+        cursorsMap.current.set(data.userId, { x: data.x, y: data.y });
+        setCursors(Array.from(cursorsMap.current.entries()));
+        
+        setUsers(prev => {
+          if (!prev.find(u => u.id === data.userId)) {
+            return [...prev, { 
+              id: data.userId, 
+              color: getUserColor(data.userId), 
+              name: `User ${data.userId.slice(-4)}` 
+            }];
+          }
+          return prev;
+        });
+      }
+    });
 
     return () => {
-      manager.destroy();
-      if (syncIntervalRef.current) {
-        clearInterval(syncIntervalRef.current);
-      }
+      socket.off('canvas-update');
+      socket.off('cursor-update');
     };
-  }, [sessionId]);
+  }, [sessionId, setElements]);
 
   useEffect(() => {
     if (isCollaborating && elements.length > 0) {
-      const timeoutId = setTimeout(() => {
-        broadcastChange(sessionId, elements, userIdRef.current);
-      }, 500);
-      return () => clearTimeout(timeoutId);
+      if (isRemoteUpdate.current) {
+        isRemoteUpdate.current = false;
+        return;
+      }
+      socket.emit('canvas-change', { elements, userId: userIdRef.current });
     }
-  }, [elements, isCollaborating, sessionId]);
+  }, [elements, isCollaborating]);
 
   const updateCursor = (x, y) => {
-    if (managerRef.current) {
-      managerRef.current.updateCursor(x, y);
+    if (isCollaborating) {
+      socket.emit('cursor-move', { x, y, userId: userIdRef.current });
     }
   };
 
   return {
     isCollaborating,
-    users,
+    users: [{ id: userIdRef.current, name: 'You', color: getUserColor(userIdRef.current) }, ...users],
     cursors,
     currentUserId: userIdRef.current,
     updateCursor,

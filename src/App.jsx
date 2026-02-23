@@ -27,7 +27,7 @@ export default function App() {
 
   const [sessionId, setSessionId] = useState(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('session') || generateSessionId();
+    return urlParams.get('session') || null; 
   });
 
   const { isCollaborating, users, cursors, currentUserId, updateCursor } = useCollaboration(
@@ -452,7 +452,17 @@ export default function App() {
         onSave={handleSave}
         onLoad={handleLoad}
         onClear={handleClear}
-        onShare={() => setShowShareModal(true)}
+        onShare={() => {
+          let currentSession = sessionId;
+          
+          if (!currentSession) {
+            currentSession = generateSessionId();
+            setSessionId(currentSession);
+            window.history.pushState({}, '', `?session=${currentSession}`);
+          }
+          
+          setShowShareModal(true);
+        }}
         isCollaborating={isCollaborating}
       />
 
@@ -511,9 +521,9 @@ export default function App() {
         <span><kbd className={`${isDark ? 'bg-gray-800' : 'bg-gray-700'} text-gray-200 px-1 rounded`}>Scroll</kbd> Zoom</span>
         <div className="flex-1" />
         {isCollaborating ? (
-          <span className="text-blue-400">🔗 Collaborative session active</span>
+          <span className="text-blue-400">Collaborative session active</span>
         ) : (
-          <span>💾 Auto-save enabled</span>
+          <span>Auto-save enabled</span>
         )}
       </div>
     </div>
