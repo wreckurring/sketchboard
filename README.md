@@ -79,15 +79,16 @@ A real-time collaborative whiteboard built to explore WebSocket synchronization,
 ## Project Structure
 ```
 sketchboard/
-├── src/
-│   ├── components/          # UI components (Toolbar, Modals, Panels)
-│   ├── hooks/               # Custom React hooks (useHistory, useCollaboration)
-│   ├── utils/               # Core logic (drawing.js, export.js, storage.js)
-│   └── App.jsx              # Main application with canvas orchestration
-├── public/
-│   ├── manifest.json        # PWA manifest
-│   └── service-worker.js    # Offline caching strategy
-└── package.json
+├── backend/                # Express & Socket.IO Server
+│   ├── middleware/         # Rate limiting & Safety logic
+│   ├── routes/             # Health & Metrics endpoints
+│   ├── utils/              # Redis client & Circuit breakers
+│   └── server.js           # Real-time event orchestration
+├── src/                    # Vite React Frontend
+│   ├── components/         # UI (Toolbar, Modals, Panels)
+│   ├── hooks/              # useHistory, useCollaboration
+│   └── utils/              # Canvas drawing & Export logic
+└── docker-compose.yml      # Orchestrates Backend & Redis services
 ```
 
 ## Quick Start
