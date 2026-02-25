@@ -1,94 +1,64 @@
 import Redis from 'ioredis';
+import dotenv from 'dotenv';
 
-const redisClient = new Redis({
-  host: process.env.REDIS_HOST || 'localhost',
+dotenv.config();
+
+const redisConfig = {
+  host: process.env.REDIS_HOST,
   port: process.env.REDIS_PORT || 6379,
-  password: process.env.REDIS_PASSWORD || undefined,
-  retryStrategy: (times) => {
+  password: process.env.REDIS_PASSWORD,
+  tls: {
+    rejectUnauthorized: false 
+  },
+  maxRetriesPerRequest: null, 
+  retryStrategy(times) {
     const delay = Math.min(times * 50, 2000);
     return delay;
   },
-  maxRetriesPerRequest: 3,
-});
+};
 
-const redisSubscriber = redisClient.duplicate();
+export const redisClient = new Redis(redisConfig);
+export const redisSubscriber = new Redis(redisConfig);
 
-redisClient.on('error', (err) => console.error('Redis Client Error:', err));
-redisSubscriber.on('error', (err) => console.error('Redis Subscriber Error:', err));
+const handleRedisError = (name, err) => {
+  console.error(`Redis ${name} Error:`, err.message);
+};
 
-export class RedisPubSub {
-  constructor() {
-    this.subscribers = new Map();
-  }
+redisClient.on('error', (err) => handleRedisError('Client', err));
+redisSubscriber.on('error', (err) => handleRedisError('Subscriber', err));
 
-  async publish(channel, message) {
+redisClient.on('connect', () => console.log('✅ Redis Client Connected'));
+redisSubscriber.on('connect', () => console.log('✅ Redis Subscriber Connected'));
+
+export const redisPubSub = {
+  async publish(channel, data) {
     try {
-      const payload = JSON.stringify(message);
-      await redisClient.publish(channel, payload);
-      return true;
+      await redisClient.publish(channel, JSON.stringify(data));
     } catch (error) {
-      console.error('Redis publish error:', error);
-      return false;
+      console.error('Redis Publish Error:', error);
     }
-  }
+  },
 
   subscribe(channel, callback) {
-    if (!this.subscribers.has(channel)) {
-      this.subscribers.set(channel, new Set());
-      redisSubscriber.subscribe(channel);
-    }
-    
-    this.subscribers.get(channel).add(callback);
-
-    redisSubscriber.on('message', (ch, message) => {
-      if (ch === channel) {
-        try {
-          const data = JSON.parse(message);
-          this.subscribers.get(channel).forEach(cb => cb(data));
-        } catch (error) {
-          console.error('Message parse error:', error);
-        }
+    redisSubscriber.subscribe(channel);
+    redisSubscriber.on('message', (chan, message) => {
+      if (chan === channel) {
+        callback(JSON.parse(message));
       }
     });
-  }
+  },
 
-  unsubscribe(channel, callback) {
-    const subs = this.subscribers.get(channel);
-    if (subs) {
-      subs.delete(callback);
-      if (subs.size === 0) {
-        redisSubscriber.unsubscribe(channel);
-        this.subscribers.delete(channel);
-      }
-    }
-  }
+  unsubscribe(channel) {
+    redisSubscriber.unsubscribe(channel);
+  },
 
-  async setPresence(userId, sessionId, ttl = 30) {
-    const key = `presence:${sessionId}:${userId}`;
-    await redisClient.setex(key, ttl, JSON.stringify({
-      userId,
-      sessionId,
-      timestamp: Date.now(),
-    }));
-  }
-
-  async getPresence(sessionId) {
-    const pattern = `presence:${sessionId}:*`;
-    const keys = await redisClient.keys(pattern);
-    const users = await Promise.all(
-      keys.map(async (key) => {
-        const data = await redisClient.get(key);
-        return data ? JSON.parse(data) : null;
-      })
-    );
-    return users.filter(Boolean);
-  }
+  async setPresence(userId, sessionId) {
+    const key = `presence:${sessionId}`;
+    await redisClient.sadd(key, userId);
+    await redisClient.expire(key, 3600);
+  },
 
   async clearPresence(userId, sessionId) {
-    const key = `presence:${sessionId}:${userId}`;
-    await redisClient.del(key);
+    await redisClient.srem(`presence:${sessionId}`, userId);
   }
-}
-
-export const redisPubSub = new RedisPubSub();
-export { redisClient };
+};
