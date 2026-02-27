@@ -13,7 +13,6 @@ A real-time collaborative whiteboard built to explore WebSocket synchronization,
 - **Real-time Collaboration** - WebSocket-based cursor tracking and element synchronization
 - **Offline-First PWA** - Service worker caching with background sync
 - **Canvas Optimization** - Viewport culling and requestAnimationFrame rendering
-- **Hand-drawn Aesthetic** - Rough.js-style stroke rendering with geometric randomness
 - **Multi-format Export** - PNG/SVG/JSON with configurable backgrounds and compression
 
 ## Tech Stack
