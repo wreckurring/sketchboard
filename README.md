@@ -13,13 +13,11 @@ A real-time collaborative whiteboard built to explore WebSocket synchronization,
 - **Real-time Collaboration** - WebSocket-based cursor tracking and element synchronization
 - **Offline-First PWA** - Service worker caching with background sync
 - **Canvas Optimization** - Viewport culling and requestAnimationFrame rendering
-- **Multi-format Export** - PNG/SVG/JSON with configurable backgrounds and compression
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| **Frontend** | React 18, Hooks API |
 | **Canvas** | HTML5 Canvas API, Custom rendering engine |
 | **Real-time** | WebSocket (SockJS/STOMP), Shared state sync |
 | **Storage** | IndexedDB, LocalStorage, Service Worker Cache |
@@ -58,7 +56,7 @@ A real-time collaborative whiteboard built to explore WebSocket synchronization,
 
 - Designed viewport-aware rendering to handle 1000+ canvas elements without frame drops.
 - Implemented conflict-free collaborative editing with last-write-wins CRDT semantics.
-- Built custom undo/redo stack with state snapshots and memory-efficient diffing.
+- Built custom undo/redo stack with state snapshots.
 - Achieved 60fps canvas performance with RAF throttling and dirty region tracking.
 
 ## Scalability Design
@@ -66,34 +64,31 @@ A real-time collaborative whiteboard built to explore WebSocket synchronization,
 - Stateless collaboration via URL-based session IDs and shared storage API.
 - Viewport culling reduces render load by 70% for dense canvases (tested with 5000+ elements).
 - Service worker caching enables instant load times and full offline functionality.
-- Modular component architecture with code splitting for <100KB initial bundle.
 
 ## Performance Optimizations
 
 - **Rendering:** requestAnimationFrame batching, viewport culling, dirty rectangle optimization
 - **Memory:** Incremental element rendering, lazy loading for off-screen content
-- **Network:** Debounced collaboration broadcasts (500ms), delta-only sync payloads
 - **Storage:** Compression for exported files, IndexedDB for large datasets
 
 ## Project Structure
 ```
 sketchboard/
-├── backend/                # Express & Socket.IO Server
-│   ├── middleware/         # Rate limiting & Safety logic
-│   ├── routes/             # Health & Metrics endpoints
-│   ├── utils/              # Redis client & Circuit breakers
-│   └── server.js           # Real-time event orchestration
-├── src/                    # Vite React Frontend
-│   ├── components/         # UI (Toolbar, Modals, Panels)
-│   ├── hooks/              # useHistory, useCollaboration
-│   └── utils/              # Canvas drawing & Export logic
-└── docker-compose.yml      # Orchestrates Backend & Redis services
+├── frontend/             # React/Vite SPA (Deployed on Vercel)
+│   ├── public/           # PWA Assets & Service Worker
+│   ├── src/              # Components, Hooks, Utils
+│   └── vercel.json       # SPA Routing & Cache Invalidation
+├── backend/              # Node.js & Socket.IO (Deployed on Render)
+│   ├── utils/            # Redis Pub/Sub Logic
+│   └── server.js         # Real-time event orchestration
+├── docker-compose.yml    # Root orchestration for Backend & Redis
+└── README.md
 ```
 
 ## Quick Start
 ```bash
 # Clone and run
-git clone https://github.com/yourusername/sketchboard.git
+git clone https://github.com/wreckurring/sketchboard.git
 cd sketchboard
 npm install
 npm run dev
