@@ -197,7 +197,7 @@ export default function App() {
 
       ctx.restore();
     });
-  }, [visibleElements, selectedIds, panOffset, scale, selectionBox, isDark, cursors, users, currentUserId]);
+  }, [visibleElements, selectedIds, panOffset, scale, selectionBox, isDark, cursors, users, currentUserId, isBackendReady]);
 
   const handleMouseDown = (e) => {
     if (editingText) return;
@@ -343,9 +343,11 @@ export default function App() {
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     canvas.addEventListener('wheel', handleWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', handleWheel);
-  }, []);
+  }, [isBackendReady]);
 
   const commitText = (value) => {
     if (!editingText) return;
