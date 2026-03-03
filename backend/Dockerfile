@@ -14,6 +14,8 @@ RUN apk add --no-cache curl
 COPY --from=builder /app/node_modules ./node_modules
 COPY . .
 
+RUN chown -R node:node /app
+
 ENV NODE_ENV=production
 ENV PORT=3000
 
