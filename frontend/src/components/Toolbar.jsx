@@ -3,7 +3,7 @@ import {
   MousePointer, Square, Circle, Diamond, Minus, ArrowUpRight,
   Pencil, Type, Eraser, Hand, Trash2, Copy,
   Undo2, Redo2, ZoomIn, ZoomOut, Layers, AlignLeft, AlignCenter, AlignRight,
-  Download, Upload, Save, Share2
+  Download, Upload, Save, Share2, WifiOff
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 
@@ -41,6 +41,7 @@ export default function Toolbar({
   isDark, onToggleTheme,
   onExport, onSave, onLoad, onClear, onShare,
   isCollaborating,
+  isOnline,
 }) {
   const fileInputRef = useRef(null);
 
@@ -49,12 +50,24 @@ export default function Toolbar({
       <div className={`px-4 py-2 flex items-center justify-between ${isDark ? 'border-gray-700' : 'border-gray-100'} border-b`}>
         <div className="flex items-center gap-3">
           <h1 className={`text-xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>Sketchboard</h1>
-          {isCollaborating && (
-            <span className={`text-xs ${isDark ? 'bg-blue-900 text-blue-200' : 'bg-blue-100 text-blue-600'} px-2 py-0.5 rounded-full font-medium flex items-center gap-1`}>
-              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
-              Live
-            </span>
-          )}
+          
+          <div className="flex items-center gap-2">
+            {/* Online/Collaboration Badge */}
+            {isCollaborating && isOnline && (
+              <span className={`text-xs ${isDark ? 'bg-blue-900/50 text-blue-200' : 'bg-blue-100 text-blue-600'} px-2 py-0.5 rounded-full font-medium flex items-center gap-1`}>
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+                Live
+              </span>
+            )}
+
+            {/* Offline Badge */}
+            {!isOnline && (
+              <span className={`text-xs ${isDark ? 'bg-amber-900/50 text-amber-200' : 'bg-amber-100 text-amber-700'} px-2 py-0.5 rounded-full font-medium flex items-center gap-1`}>
+                <WifiOff size={12} />
+                Offline (Saving Locally)
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -72,10 +85,12 @@ export default function Toolbar({
             className={`p-1.5 rounded ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition`}>
             <Save size={18} />
           </button>
+          
           <button onClick={() => fileInputRef.current?.click()} title="Open File"
             className={`p-1.5 rounded ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition`}>
             <Upload size={18} />
           </button>
+          
           <input ref={fileInputRef} type="file" accept=".json,.sketchboard,.excalidraw" 
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -236,7 +251,7 @@ export default function Toolbar({
           </>
         )}
 
-        <div className={`w-px h-8 ${isDark ? 'bg-gray-600' : 'bg-gray-200'}`} />
+        <div className={`w-px h-8 ${isDark ? 'bg-gray-600' : 'bg-gray-200'} border-l`} />
 
         <div className="flex gap-1">
           <button onClick={onCopy} disabled={selectedCount === 0} title="Duplicate (Ctrl+D)"

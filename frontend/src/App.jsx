@@ -23,37 +23,21 @@ export default function App() {
   const autosaveTimer = useRef(null);
 
   const [isBackendReady, setIsBackendReady] = useState(false);
-  const [hasError, setHasError] = useState(false);
-
-  useEffect(() => {
-  const checkHealth = async () => {
-    try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/health`);
-      if (response.ok) {
-        setIsBackendReady(true);
-      } else {
-        throw new Error();
-      }
-    } catch (err) {
-      setTimeout(checkHealth, 3000);
-    }
-  };
-
-  checkHealth();
-  
   const [isDark, setIsDark] = useState(() => loadPreferences().theme === 'dark');
   const { state: elements, setState: setElements, undo, redo, canUndo, canRedo } = useHistory([]);
 
   const [sessionId, setSessionId] = useState(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('session') || null; 
+    return urlParams.get('session') || null;
   });
 
-  const { isCollaborating, users, cursors, currentUserId, updateCursor } = useCollaboration(
+  const collaborationData = useCollaboration(
     isBackendReady ? sessionId : null,
     elements,
     setElements
   );
+
+  const { isCollaborating, users, cursors, currentUserId, updateCursor } = collaborationData;
 
   const [tool, setTool] = useState('select');
   const [isDrawing, setIsDrawing] = useState(false);
@@ -66,6 +50,7 @@ export default function App() {
   const [scale, setScale] = useState(1);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const [currentColor, setCurrentColor] = useState('#1e1e1e');
   const [fillColor, setFillColor] = useState('transparent');
@@ -80,75 +65,21 @@ export default function App() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
 
-}, []);
-
   useEffect(() => {
-    if (!isCollaborating) {
-      const saved = loadFromLocalStorage();
-      if (saved && saved.length > 0) setElements(saved);
-    }
-  }, [isCollaborating]);
-
-  useEffect(() => {
-    if (!isCollaborating && elements.length > 0) {
-      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-      autosaveTimer.current = setTimeout(() => {
-        saveToLocalStorage(elements);
-      }, 2000);
-    }
-  }, [elements, isCollaborating]);
-
-  useEffect(() => {
-    document.body.className = isDark ? 'bg-gray-900' : 'bg-gray-50';
-    savePreferences({ theme: isDark ? 'dark' : 'light' });
-  }, [isDark]);
-
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js').catch(() => {});
-    }
+    const checkHealth = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/health`);
+        if (response.ok) {
+          setIsBackendReady(true);
+        } else {
+          throw new Error();
+        }
+      } catch (err) {
+        setTimeout(checkHealth, 3000);
+      }
+    };
+    checkHealth();
   }, []);
-
-  const getMousePos = useCallback((e) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    let x = (e.clientX - rect.left - panOffset.x) / scale;
-    let y = (e.clientY - rect.top - panOffset.y) / scale;
-    if (snapEnabled) {
-      x = snap(x, GRID_SIZE);
-      y = snap(y, GRID_SIZE);
-    }
-    return { x, y };
-  }, [panOffset, scale, snapEnabled]);
-
-  const newElementDefaults = () => ({
-    id: generateId(),
-    color: currentColor,
-    fillColor: fillColor === 'transparent' ? null : fillColor,
-    strokeWidth,
-    lineStyle,
-    fontSize,
-    fontFamily,
-    textAlign,
-    opacity: 1,
-  });
-
-  const visibleElements = useMemo(() => {
-    if (!canvasRef.current) return elements;
-    const canvas = canvasRef.current;
-    const viewportMinX = -panOffset.x / scale;
-    const viewportMaxX = (canvas.width - panOffset.x) / scale;
-    const viewportMinY = -panOffset.y / scale;
-    const viewportMaxY = (canvas.height - panOffset.y) / scale;
-
-    return elements.filter(el => {
-      const minX = Math.min(el.x1, el.x2);
-      const maxX = Math.max(el.x1, el.x2);
-      const minY = Math.min(el.y1, el.y2);
-      const maxY = Math.max(el.y1, el.y2);
-      
-      return !(maxX < viewportMinX || minX > viewportMaxX || maxY < viewportMinY || minY > viewportMaxY);
-    });
-  }, [elements, panOffset, scale]);
 
   useEffect(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -200,16 +131,77 @@ export default function App() {
     });
   }, [visibleElements, selectedIds, panOffset, scale, selectionBox, isDark, cursors, users, currentUserId, isBackendReady]);
 
+  useEffect(() => {
+  const handleStatus = () => setIsOnline(navigator.onLine);
+  window.addEventListener('online', handleStatus);
+  window.addEventListener('offline', handleStatus);
+  return () => {
+    window.removeEventListener('online', handleStatus);
+    window.removeEventListener('offline', handleStatus);
+  };
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (canvasRef.current) {
+        canvasRef.current.width = window.innerWidth;
+        canvasRef.current.height = window.innerHeight - 100;
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isBackendReady]);
+
+  const getMousePos = useCallback((e) => {
+    if (!canvasRef.current) return { x: 0, y: 0 };
+    const rect = canvasRef.current.getBoundingClientRect();
+    let x = (e.clientX - rect.left - panOffset.x) / scale;
+    let y = (e.clientY - rect.top - panOffset.y) / scale;
+    if (snapEnabled) {
+      x = snap(x, GRID_SIZE);
+      y = snap(y, GRID_SIZE);
+    }
+    return { x, y };
+  }, [panOffset, scale, snapEnabled]);
+
+  const newElementDefaults = () => ({
+    id: generateId(),
+    color: currentColor,
+    fillColor: fillColor === 'transparent' ? null : fillColor,
+    strokeWidth,
+    lineStyle,
+    fontSize,
+    fontFamily,
+    textAlign,
+    opacity: 1,
+  });
+
+  const visibleElements = useMemo(() => {
+    if (!canvasRef.current) return elements;
+    const canvas = canvasRef.current;
+    const viewportMinX = -panOffset.x / scale;
+    const viewportMaxX = (canvas.width - panOffset.x) / scale;
+    const viewportMinY = -panOffset.y / scale;
+    const viewportMaxY = (canvas.height - panOffset.y) / scale;
+
+    return elements.filter(el => {
+      const minX = Math.min(el.x1, el.x2);
+      const maxX = Math.max(el.x1, el.x2);
+      const minY = Math.min(el.y1, el.y2);
+      const maxY = Math.max(el.y1, el.y2);
+      return !(maxX < viewportMinX || minX > viewportMaxX || maxY < viewportMinY || minY > viewportMaxY);
+    });
+  }, [elements, panOffset, scale]);
+
   const handleMouseDown = (e) => {
     if (editingText) return;
     const { x, y } = getMousePos(e);
-
     if (e.button === 1 || tool === 'hand') {
       setIsPanning(true);
       setPanStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
       return;
     }
-
     if (tool === 'select') {
       const hit = [...elements].reverse().find(el => isPointInElement(x, y, el));
       if (hit) {
@@ -234,14 +226,12 @@ export default function App() {
       }
       return;
     }
-
     if (tool === 'text') {
       const el = { ...newElementDefaults(), type: 'text', x1: x, y1: y, x2: x + 200, y2: y + 30, text: '' };
       setElements(prev => [...prev, el]);
       setEditingText(el);
       return;
     }
-
     setIsDrawing(true);
     const el = {
       ...newElementDefaults(),
@@ -255,44 +245,31 @@ export default function App() {
 
   const handleMouseMove = (e) => {
     const { x, y } = getMousePos(e);
-    
-    if (isCollaborating) {
-      updateCursor(x, y);
-    }
-
+    if (isCollaborating) updateCursor(x, y);
     if (isPanning) {
       setPanOffset({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
       return;
     }
-
     if (action === 'selecting') {
       setSelectionBox(prev => prev ? { ...prev, x2: x, y2: y } : null);
     } else if (action === 'moving' && dragStart) {
       const dx = x - dragStart.x, dy = y - dragStart.y;
-      setElements(prev =>
-        prev.map(el =>
-          selectedIds.includes(el.id)
-            ? {
-                ...el,
-                x1: el.x1 + dx, y1: el.y1 + dy, x2: el.x2 + dx, y2: el.y2 + dy,
-                points: el.points?.map(([px, py]) => [px + dx, py + dy]),
-              }
-            : el
-        )
-      );
+      setElements(prev => prev.map(el => selectedIds.includes(el.id) ? {
+        ...el,
+        x1: el.x1 + dx, y1: el.y1 + dy, x2: el.x2 + dx, y2: el.y2 + dy,
+        points: el.points?.map(([px, py]) => [px + dx, py + dy]),
+      } : el));
       setDragStart({ x, y });
     } else if (action === 'resizing' && selectedIds.length === 1) {
-      setElements(prev =>
-        prev.map(el => {
-          if (el.id !== selectedIds[0]) return el;
-          let { x1, y1, x2, y2 } = el;
-          if (resizeHandle.includes('n')) y1 = y;
-          if (resizeHandle.includes('s')) y2 = y;
-          if (resizeHandle.includes('e')) x2 = x;
-          if (resizeHandle.includes('w')) x1 = x;
-          return { ...el, x1, y1, x2, y2 };
-        })
-      );
+      setElements(prev => prev.map(el => {
+        if (el.id !== selectedIds[0]) return el;
+        let { x1, y1, x2, y2 } = el;
+        if (resizeHandle.includes('n')) y1 = y;
+        if (resizeHandle.includes('s')) y2 = y;
+        if (resizeHandle.includes('e')) x2 = x;
+        if (resizeHandle.includes('w')) x1 = x;
+        return { ...el, x1, y1, x2, y2 };
+      }));
     } else if (isDrawing) {
       setElements(prev => {
         const updated = [...prev];
@@ -300,8 +277,7 @@ export default function App() {
         if (current.type === 'pencil' || current.type === 'eraser') {
           current.points = [...current.points, [x, y]];
         } else {
-          current.x2 = x;
-          current.y2 = y;
+          current.x2 = x; current.y2 = y;
         }
         return updated;
       });
@@ -313,17 +289,14 @@ export default function App() {
       const { x1, y1, x2, y2 } = selectionBox;
       const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
       const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
-      const ids = elements
-        .filter(el => {
-          const eMinX = Math.min(el.x1, el.x2), eMaxX = Math.max(el.x1, el.x2);
-          const eMinY = Math.min(el.y1, el.y2), eMaxY = Math.max(el.y1, el.y2);
-          return eMinX >= minX && eMaxX <= maxX && eMinY >= minY && eMaxY <= maxY;
-        })
-        .map(el => el.id);
+      const ids = elements.filter(el => {
+        const eMinX = Math.min(el.x1, el.x2), eMaxX = Math.max(el.x1, el.x2);
+        const eMinY = Math.min(el.y1, el.y2), eMaxY = Math.max(el.y1, el.y2);
+        return eMinX >= minX && eMaxX <= maxX && eMinY >= minY && eMaxY <= maxY;
+      }).map(el => el.id);
       setSelectedIds(ids);
       setSelectionBox(null);
     }
-
     setIsDrawing(false);
     setIsPanning(false);
     setAction('none');
@@ -345,7 +318,6 @@ export default function App() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     canvas.addEventListener('wheel', handleWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', handleWheel);
   }, [isBackendReady]);
@@ -373,14 +345,10 @@ export default function App() {
 
   const handleCopy = useCallback(() => {
     if (selectedIds.length === 0) return;
-    const copies = elements
-      .filter(el => selectedIds.includes(el.id))
-      .map(el => ({
-        ...el,
-        id: generateId(),
-        x1: el.x1 + 20, y1: el.y1 + 20, x2: el.x2 + 20, y2: el.y2 + 20,
-        points: el.points?.map(([px, py]) => [px + 20, py + 20]),
-      }));
+    const copies = elements.filter(el => selectedIds.includes(el.id)).map(el => ({
+      ...el, id: generateId(), x1: el.x1 + 20, y1: el.y1 + 20, x2: el.x2 + 20, y2: el.y2 + 20,
+      points: el.points?.map(([px, py]) => [px + 20, py + 20]),
+    }));
     setElements(prev => [...prev, ...copies]);
     setSelectedIds(copies.map(el => el.id));
   }, [selectedIds, elements]);
@@ -422,23 +390,17 @@ export default function App() {
     const onKey = (e) => {
       if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
       const ctrl = e.ctrlKey || e.metaKey;
-
       if (ctrl && e.key === 'z') { e.preventDefault(); setElements(undo()); }
       if (ctrl && e.key === 'y') { e.preventDefault(); setElements(redo()); }
       if (ctrl && e.key === 'd') { e.preventDefault(); handleCopy(); }
       if (ctrl && e.key === 's') { e.preventDefault(); handleSave(); }
-      if (ctrl && e.key === 'a') {
-        e.preventDefault();
-        setSelectedIds(elements.map(el => el.id));
-      }
-
+      if (ctrl && e.key === 'a') { e.preventDefault(); setSelectedIds(elements.map(el => el.id)); }
       if (!ctrl) {
         if (KEY_TOOL_MAP[e.key]) setTool(KEY_TOOL_MAP[e.key]);
         if (e.key === 'Delete' || e.key === 'Backspace') handleDelete();
         if (e.key === 'Escape') setSelectedIds([]);
       }
     };
-
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedIds, elements, undo, redo, handleDelete, handleCopy]);
@@ -452,18 +414,18 @@ export default function App() {
   };
 
   if (!isBackendReady) {
-  return (
-    <div className={`h-screen w-screen flex flex-col items-center justify-center ${isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
-      <div className="relative w-16 h-16">
-        <div className="absolute top-0 left-0 w-full h-full border-4 border-blue-500/20 rounded-full"></div>
-        <div className="absolute top-0 left-0 w-full h-full border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+    return (
+      <div className={`h-screen w-screen flex flex-col items-center justify-center ${isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+        <div className="relative w-16 h-16">
+          <div className="absolute top-0 left-0 w-full h-full border-4 border-blue-500/20 rounded-full"></div>
+          <div className="absolute top-0 left-0 w-full h-full border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+        <h2 className="mt-6 text-xl font-semibold">Waking up server</h2>
+        <p className="mt-2 text-sm opacity-60 text-center max-w-xs">
+          The server is spinning up on Render. This usually takes 30-60 seconds of inactivity.
+        </p>
       </div>
-      <h2 className="mt-6 text-xl font-semibold">Waking up server</h2>
-      <p className="mt-2 text-sm opacity-60 text-center max-w-xs">
-        The server is spinning up on Render. This usually takes 30-60 seconds of inactivity.
-      </p>
-    </div>
-  );
+    );
   }
 
   return (
@@ -492,16 +454,15 @@ export default function App() {
         onClear={handleClear}
         onShare={() => {
           let currentSession = sessionId;
-          
           if (!currentSession) {
             currentSession = generateSessionId();
             setSessionId(currentSession);
             window.history.pushState({}, '', `?session=${currentSession}`);
           }
-          
           setShowShareModal(true);
         }}
         isCollaborating={isCollaborating}
+        isOnline={isOnline}
       />
 
       <div className="flex-1 relative overflow-hidden">
