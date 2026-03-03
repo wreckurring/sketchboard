@@ -22,6 +22,25 @@ export default function App() {
   const rafRef = useRef(null);
   const autosaveTimer = useRef(null);
 
+  const [isBackendReady, setIsBackendReady] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+  const checkHealth = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/health`);
+      if (response.ok) {
+        setIsBackendReady(true);
+      } else {
+        throw new Error();
+      }
+    } catch (err) {
+      setTimeout(checkHealth, 3000);
+    }
+  };
+
+  checkHealth();
+  
   const [isDark, setIsDark] = useState(() => loadPreferences().theme === 'dark');
   const { state: elements, setState: setElements, undo, redo, canUndo, canRedo } = useHistory([]);
 
@@ -31,7 +50,7 @@ export default function App() {
   });
 
   const { isCollaborating, users, cursors, currentUserId, updateCursor } = useCollaboration(
-    sessionId,
+    isBackendReady ? sessionId : null,
     elements,
     setElements
   );
@@ -61,24 +80,6 @@ export default function App() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
 
-  const [isBackendReady, setIsBackendReady] = useState(false);
-  const [hasError, setHasError] = useState(false);
-
-  useEffect(() => {
-  const checkHealth = async () => {
-    try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/health`);
-      if (response.ok) {
-        setIsBackendReady(true);
-      } else {
-        throw new Error();
-      }
-    } catch (err) {
-      setTimeout(checkHealth, 3000);
-    }
-  };
-
-  checkHealth();
 }, []);
 
   useEffect(() => {
@@ -457,7 +458,7 @@ export default function App() {
         <div className="absolute top-0 left-0 w-full h-full border-4 border-blue-500/20 rounded-full"></div>
         <div className="absolute top-0 left-0 w-full h-full border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
-      <h2 className="mt-6 text-xl font-semibold">Waking up Sketchboard</h2>
+      <h2 className="mt-6 text-xl font-semibold">Waking up server</h2>
       <p className="mt-2 text-sm opacity-60 text-center max-w-xs">
         The server is spinning up on Render. This usually takes 30-60 seconds of inactivity.
       </p>
