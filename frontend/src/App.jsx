@@ -24,6 +24,8 @@ export default function App() {
 
   const [isBackendReady, setIsBackendReady] = useState(false);
   const [isDark, setIsDark] = useState(() => loadPreferences().theme === 'dark');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
   const { state: elements, setState: setElements, undo, redo, canUndo, canRedo } = useHistory([]);
 
   const [sessionId, setSessionId] = useState(() => {
@@ -50,7 +52,6 @@ export default function App() {
   const [scale, setScale] = useState(1);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const [currentColor, setCurrentColor] = useState('#1e1e1e');
   const [fillColor, setFillColor] = useState('transparent');
@@ -132,13 +133,13 @@ export default function App() {
   }, [visibleElements, selectedIds, panOffset, scale, selectionBox, isDark, cursors, users, currentUserId, isBackendReady]);
 
   useEffect(() => {
-  const handleStatus = () => setIsOnline(navigator.onLine);
-  window.addEventListener('online', handleStatus);
-  window.addEventListener('offline', handleStatus);
-  return () => {
-    window.removeEventListener('online', handleStatus);
-    window.removeEventListener('offline', handleStatus);
-  };
+    const handleStatus = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', handleStatus);
+    window.addEventListener('offline', handleStatus);
+    return () => {
+      window.removeEventListener('online', handleStatus);
+      window.removeEventListener('offline', handleStatus);
+    };
   }, []);
 
   useEffect(() => {
@@ -310,17 +311,36 @@ export default function App() {
     if (hit) setEditingText(hit);
   };
 
-  const handleWheel = (e) => {
+  // Pointer-centric Zoom
+  const handleWheel = useCallback((e) => {
     e.preventDefault();
-    setScale(s => Math.max(0.1, Math.min(8, s * (e.deltaY > 0 ? 0.9 : 1.1))));
-  };
+    if (!canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    setScale(prevScale => {
+      const zoomSensitivity = 0.001;
+      const delta = -e.deltaY * zoomSensitivity;
+      const newScale = Math.max(0.1, Math.min(8, prevScale * Math.exp(delta)));
+      
+      const scaleRatio = newScale / prevScale;
+      setPanOffset(prevOffset => ({
+        x: mouseX - (mouseX - prevOffset.x) * scaleRatio,
+        y: mouseY - (mouseY - prevOffset.y) * scaleRatio
+      }));
+
+      return newScale;
+    });
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     canvas.addEventListener('wheel', handleWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', handleWheel);
-  }, [isBackendReady]);
+  }, [isBackendReady, handleWheel]);
 
   const commitText = (value) => {
     if (!editingText) return;

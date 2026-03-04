@@ -42,9 +42,12 @@ io.on('connection', (socket) => {
     await redisPubSub.setPresence(userId, sessionId);
 
     const channelName = `session:${sessionId}`;
-    const handleMessage = (data) => socket.emit('canvas-update', data);
+    
+    const handleCanvasMessage = (data) => socket.emit('canvas-update', data);
+    const handleCursorMessage = (data) => socket.emit('cursor-update', data);
 
-    redisPubSub.subscribe(channelName, handleMessage);
+    redisPubSub.subscribe(channelName, handleCanvasMessage);
+    redisPubSub.subscribe(`${channelName}:cursor`, handleCursorMessage);
 
     socket.on('canvas-change', (data) => {
       redisPubSub.publish(channelName, { ...data, userId });
@@ -55,12 +58,18 @@ io.on('connection', (socket) => {
     });
 
     socket.once('disconnect', () => {
+      redisPubSub.unsubscribe(channelName, handleCanvasMessage);
+      redisPubSub.unsubscribe(`${channelName}:cursor`, handleCursorMessage);
+      
       redisPubSub.clearPresence(userId, sessionId);
+      
+      socket.to(sessionId).emit('user-left', { userId });
+      
       console.log(`Client disconnected: ${socket.id}`);
     });
   });
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });

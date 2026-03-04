@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { socket, generateUserId, getUserColor } from '../utils/collaboration';
 
 export function useCollaboration(sessionId, elements, setElements) {
@@ -9,6 +9,7 @@ export function useCollaboration(sessionId, elements, setElements) {
   const userIdRef = useRef(generateUserId());
   const cursorsMap = useRef(new Map());
   const isRemoteUpdate = useRef(false);
+  const lastCursorEmit = useRef(0);
 
   useEffect(() => {
     if (!sessionId) {
@@ -50,9 +51,16 @@ export function useCollaboration(sessionId, elements, setElements) {
       }
     });
 
+    socket.on('user-left', ({ userId }) => {
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      setCursors(prev => prev.filter(([id]) => id !== userId));
+      cursorsMap.current.delete(userId);
+    });
+
     return () => {
       socket.off('canvas-update');
       socket.off('cursor-update');
+      socket.off('user-left');
     };
   }, [sessionId, setElements]);
 
@@ -66,11 +74,15 @@ export function useCollaboration(sessionId, elements, setElements) {
     }
   }, [elements, isCollaborating]);
 
-  const updateCursor = (x, y) => {
-    if (isCollaborating) {
+  const updateCursor = useCallback((x, y) => {
+    if (!isCollaborating) return;
+    
+    const now = Date.now();
+    if (now - lastCursorEmit.current > 40) {
       socket.emit('cursor-move', { x, y, userId: userIdRef.current });
+      lastCursorEmit.current = now;
     }
-  };
+  }, [isCollaborating]);
 
   return {
     isCollaborating,

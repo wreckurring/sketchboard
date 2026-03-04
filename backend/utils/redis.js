@@ -27,8 +27,22 @@ const handleRedisError = (name, err) => {
 redisClient.on('error', (err) => handleRedisError('Client', err));
 redisSubscriber.on('error', (err) => handleRedisError('Subscriber', err));
 
-redisClient.on('connect', () => console.log('✅ Redis Client Connected'));
-redisSubscriber.on('connect', () => console.log('✅ Redis Subscriber Connected'));
+redisClient.on('connect', () => console.log('Redis Client Connected'));
+redisSubscriber.on('connect', () => console.log('Redis Subscriber Connected'));
+
+const channelCallbacks = new Map();
+
+redisSubscriber.on('message', (channel, message) => {
+  const callbacks = channelCallbacks.get(channel);
+  if (callbacks) {
+    try {
+      const parsedData = JSON.parse(message);
+      callbacks.forEach(cb => cb(parsedData));
+    } catch (e) {
+      console.error('Failed to parse Redis message:', e);
+    }
+  }
+});
 
 export const redisPubSub = {
   async publish(channel, data) {
@@ -40,16 +54,22 @@ export const redisPubSub = {
   },
 
   subscribe(channel, callback) {
-    redisSubscriber.subscribe(channel);
-    redisSubscriber.on('message', (chan, message) => {
-      if (chan === channel) {
-        callback(JSON.parse(message));
-      }
-    });
+    if (!channelCallbacks.has(channel)) {
+      channelCallbacks.set(channel, new Set());
+      redisSubscriber.subscribe(channel);
+    }
+    channelCallbacks.get(channel).add(callback);
   },
 
-  unsubscribe(channel) {
-    redisSubscriber.unsubscribe(channel);
+  unsubscribe(channel, callback) {
+    const callbacks = channelCallbacks.get(channel);
+    if (callbacks) {
+      callbacks.delete(callback);
+      if (callbacks.size === 0) {
+        redisSubscriber.unsubscribe(channel);
+        channelCallbacks.delete(channel);
+      }
+    }
   },
 
   async setPresence(userId, sessionId) {
