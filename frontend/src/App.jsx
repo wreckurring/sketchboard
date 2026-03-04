@@ -22,12 +22,15 @@ export default function App() {
   const rafRef = useRef(null);
   const autosaveTimer = useRef(null);
 
+  // base
   const [isBackendReady, setIsBackendReady] = useState(false);
   const [isDark, setIsDark] = useState(() => loadPreferences().theme === 'dark');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
+  // history
   const { state: elements, setState: setElements, undo, redo, canUndo, canRedo } = useHistory([]);
 
+  // collab state
   const [sessionId, setSessionId] = useState(() => {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('session') || null;
@@ -66,6 +69,48 @@ export default function App() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
 
+
+  const getMousePos = useCallback((e) => {
+    if (!canvasRef.current) return { x: 0, y: 0 };
+    const rect = canvasRef.current.getBoundingClientRect();
+    let x = (e.clientX - rect.left - panOffset.x) / scale;
+    let y = (e.clientY - rect.top - panOffset.y) / scale;
+    if (snapEnabled) {
+      x = snap(x, GRID_SIZE);
+      y = snap(y, GRID_SIZE);
+    }
+    return { x, y };
+  }, [panOffset, scale, snapEnabled]);
+
+  const newElementDefaults = () => ({
+    id: generateId(),
+    color: currentColor,
+    fillColor: fillColor === 'transparent' ? null : fillColor,
+    strokeWidth,
+    lineStyle,
+    fontSize,
+    fontFamily,
+    textAlign,
+    opacity: 1,
+  });
+
+  const visibleElements = useMemo(() => {
+    if (!canvasRef.current) return elements;
+    const canvas = canvasRef.current;
+    const viewportMinX = -panOffset.x / scale;
+    const viewportMaxX = (canvas.width - panOffset.x) / scale;
+    const viewportMinY = -panOffset.y / scale;
+    const viewportMaxY = (canvas.height - panOffset.y) / scale;
+
+    return elements.filter(el => {
+      const minX = Math.min(el.x1, el.x2);
+      const maxX = Math.max(el.x1, el.x2);
+      const minY = Math.min(el.y1, el.y2);
+      const maxY = Math.max(el.y1, el.y2);
+      return !(maxX < viewportMinX || minX > viewportMaxX || maxY < viewportMinY || minY > viewportMaxY);
+    });
+  }, [elements, panOffset, scale]);
+
   useEffect(() => {
     const checkHealth = async () => {
       try {
@@ -82,6 +127,29 @@ export default function App() {
     checkHealth();
   }, []);
 
+  useEffect(() => {
+    const handleStatus = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', handleStatus);
+    window.addEventListener('offline', handleStatus);
+    return () => {
+      window.removeEventListener('online', handleStatus);
+      window.removeEventListener('offline', handleStatus);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (canvasRef.current) {
+        canvasRef.current.width = window.innerWidth;
+        canvasRef.current.height = window.innerHeight - 100;
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isBackendReady]);
+
+  // Canvas Rendering
   useEffect(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
 
@@ -132,69 +200,8 @@ export default function App() {
     });
   }, [visibleElements, selectedIds, panOffset, scale, selectionBox, isDark, cursors, users, currentUserId, isBackendReady]);
 
-  useEffect(() => {
-    const handleStatus = () => setIsOnline(navigator.onLine);
-    window.addEventListener('online', handleStatus);
-    window.addEventListener('offline', handleStatus);
-    return () => {
-      window.removeEventListener('online', handleStatus);
-      window.removeEventListener('offline', handleStatus);
-    };
-  }, []);
 
-  useEffect(() => {
-    const handleResize = () => {
-      if (canvasRef.current) {
-        canvasRef.current.width = window.innerWidth;
-        canvasRef.current.height = window.innerHeight - 100;
-      }
-    };
-    window.addEventListener('resize', handleResize);
-    handleResize();
-    return () => window.removeEventListener('resize', handleResize);
-  }, [isBackendReady]);
-
-  const getMousePos = useCallback((e) => {
-    if (!canvasRef.current) return { x: 0, y: 0 };
-    const rect = canvasRef.current.getBoundingClientRect();
-    let x = (e.clientX - rect.left - panOffset.x) / scale;
-    let y = (e.clientY - rect.top - panOffset.y) / scale;
-    if (snapEnabled) {
-      x = snap(x, GRID_SIZE);
-      y = snap(y, GRID_SIZE);
-    }
-    return { x, y };
-  }, [panOffset, scale, snapEnabled]);
-
-  const newElementDefaults = () => ({
-    id: generateId(),
-    color: currentColor,
-    fillColor: fillColor === 'transparent' ? null : fillColor,
-    strokeWidth,
-    lineStyle,
-    fontSize,
-    fontFamily,
-    textAlign,
-    opacity: 1,
-  });
-
-  const visibleElements = useMemo(() => {
-    if (!canvasRef.current) return elements;
-    const canvas = canvasRef.current;
-    const viewportMinX = -panOffset.x / scale;
-    const viewportMaxX = (canvas.width - panOffset.x) / scale;
-    const viewportMinY = -panOffset.y / scale;
-    const viewportMaxY = (canvas.height - panOffset.y) / scale;
-
-    return elements.filter(el => {
-      const minX = Math.min(el.x1, el.x2);
-      const maxX = Math.max(el.x1, el.x2);
-      const minY = Math.min(el.y1, el.y2);
-      const maxY = Math.max(el.y1, el.y2);
-      return !(maxX < viewportMinX || minX > viewportMaxX || maxY < viewportMinY || minY > viewportMaxY);
-    });
-  }, [elements, panOffset, scale]);
-
+  // EVENT HANDLERS
   const handleMouseDown = (e) => {
     if (editingText) return;
     const { x, y } = getMousePos(e);
@@ -311,7 +318,6 @@ export default function App() {
     if (hit) setEditingText(hit);
   };
 
-  // Pointer-centric Zoom
   const handleWheel = useCallback((e) => {
     e.preventDefault();
     if (!canvasRef.current) return;
