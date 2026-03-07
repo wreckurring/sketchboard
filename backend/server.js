@@ -44,7 +44,7 @@ io.on('connection', (socket) => {
     const channelName = `session:${sessionId}`;
     
     const handleCanvasMessage = (data) => socket.emit('canvas-update', data);
-    const handleCursorMessage = (data) => socket.emit('cursor-update', data);
+    const handleCursorMessage = (data) => socket.volatile.emit('cursor-update', data);
 
     redisPubSub.subscribe(channelName, handleCanvasMessage);
     redisPubSub.subscribe(`${channelName}:cursor`, handleCursorMessage);
