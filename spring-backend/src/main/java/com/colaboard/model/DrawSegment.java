@@ -1,4 +1,4 @@
-package com.sketchboard.model;
+package com.colaboard.model;
 
 import java.util.List;
 

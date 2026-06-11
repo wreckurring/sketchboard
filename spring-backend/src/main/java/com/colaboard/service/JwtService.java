@@ -1,6 +1,6 @@
-package com.sketchboard.service;
+package com.colaboard.service;
 
-import com.sketchboard.model.UserAccount;
+import com.colaboard.model.UserAccount;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;

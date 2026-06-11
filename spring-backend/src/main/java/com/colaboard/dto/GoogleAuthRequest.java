@@ -1,4 +1,4 @@
-package com.sketchboard.dto;
+package com.colaboard.dto;
 
 public class GoogleAuthRequest {
     private String credential;

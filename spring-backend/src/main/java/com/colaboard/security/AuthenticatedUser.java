@@ -1,6 +1,6 @@
-package com.sketchboard.security;
+package com.colaboard.security;
 
-import com.sketchboard.dto.UserProfile;
+import com.colaboard.dto.UserProfile;
 
 import java.security.Principal;
 

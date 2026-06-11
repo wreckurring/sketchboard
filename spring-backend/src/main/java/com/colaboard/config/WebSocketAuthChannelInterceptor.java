@@ -1,9 +1,9 @@
-package com.sketchboard.config;
+package com.colaboard.config;
 
-import com.sketchboard.model.UserAccount;
-import com.sketchboard.security.WebSocketUserPrincipal;
-import com.sketchboard.service.JwtService;
-import com.sketchboard.service.UserAccountService;
+import com.colaboard.model.UserAccount;
+import com.colaboard.security.WebSocketUserPrincipal;
+import com.colaboard.service.JwtService;
+import com.colaboard.service.UserAccountService;
 import io.jsonwebtoken.Claims;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;

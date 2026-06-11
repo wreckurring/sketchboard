@@ -1,4 +1,4 @@
-package com.sketchboard.controller;
+package com.colaboard.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

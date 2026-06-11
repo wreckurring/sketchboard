@@ -74,7 +74,7 @@ Current Spring properties in `spring-backend/src/main/resources/application.prop
 
 ```properties
 server.port=8080
-spring.application.name=sketchboard-backend
+spring.application.name=colaboard-backend
 spring.data.redis.host=${REDIS_HOST:localhost}
 spring.data.redis.port=${REDIS_PORT:6379}
 app.jwt.secret=${JWT_SECRET:change-this-super-secret-key-change-this-super-secret-key}
@@ -128,12 +128,12 @@ Zoom/pan controls:
 
 Main files:
 
-- `spring-backend/src/main/java/com/sketchboard/controller/WhiteboardController.java`
-- `spring-backend/src/main/java/com/sketchboard/service/RoomService.java`
-- `spring-backend/src/main/java/com/sketchboard/service/RedisRoomEventSubscriber.java`
-- `spring-backend/src/main/java/com/sketchboard/config/RedisConfig.java`
-- `spring-backend/src/main/java/com/sketchboard/config/WebSocketConfig.java`
-- `spring-backend/src/main/java/com/sketchboard/config/WebSocketAuthChannelInterceptor.java`
+- `spring-backend/src/main/java/com/colaboard/controller/WhiteboardController.java`
+- `spring-backend/src/main/java/com/colaboard/service/RoomService.java`
+- `spring-backend/src/main/java/com/colaboard/service/RedisRoomEventSubscriber.java`
+- `spring-backend/src/main/java/com/colaboard/config/RedisConfig.java`
+- `spring-backend/src/main/java/com/colaboard/config/WebSocketConfig.java`
+- `spring-backend/src/main/java/com/colaboard/config/WebSocketAuthChannelInterceptor.java`
 
 Websocket endpoint:
 
@@ -161,12 +161,12 @@ Client subscribes to:
 
 Redis keys used by `RoomService`:
 
-- `sketchboard:room:{roomId}:history`
-- `sketchboard:room:{roomId}:participants`
+- `colaboard:room:{roomId}:history`
+- `colaboard:room:{roomId}:participants`
 
 Redis pub/sub topic:
 
-- `sketchboard:room-events`
+- `colaboard:room-events`
 
 Redis event types:
 
@@ -195,7 +195,7 @@ This makes the app work better when multiple users or multiple backend instances
 
 Drawing payload class:
 
-- `spring-backend/src/main/java/com/sketchboard/model/DrawSegment.java`
+- `spring-backend/src/main/java/com/colaboard/model/DrawSegment.java`
 
 Despite the name `DrawSegment`, it now represents both freehand strokes and shape elements.
 
@@ -237,7 +237,7 @@ Implemented but not active as a required gate:
 - `JwtAuthenticationFilter`
 - `AuthenticatedUser`
 - `WebSocketUserPrincipal`
-- DTOs under `spring-backend/src/main/java/com/sketchboard/dto`
+- DTOs under `spring-backend/src/main/java/com/colaboard/dto`
 
 Current temporary behavior:
 

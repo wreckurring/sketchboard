@@ -556,7 +556,7 @@ export default function Whiteboard({ roomId, onJoinRoom }) {
 
     const link = document.createElement('a');
     link.href = exportCanvas.toDataURL('image/png');
-    link.download = `sketchboard-${roomId}.png`;
+    link.download = `colaboard-${roomId}.png`;
     link.click();
   };
 
@@ -597,7 +597,7 @@ export default function Whiteboard({ roomId, onJoinRoom }) {
           <button type="button" className="header-icon-btn" aria-label="Menu">
             ☰
           </button>
-          <div className="brand-chip">sketchboard</div>
+          <div className="brand-chip">colaboard</div>
         </div>
 
           <div className="header-actions">

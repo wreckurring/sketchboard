@@ -1,11 +1,11 @@
-package com.sketchboard;
+package com.colaboard;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class sketchboardApplication {
+public class colaboardApplication {
     public static void main(String[] args) {
-        SpringApplication.run(sketchboardApplication.class, args);
+        SpringApplication.run(colaboardApplication.class, args);
     }
 }

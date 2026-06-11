@@ -1,6 +1,6 @@
-package com.sketchboard.service;
+package com.colaboard.service;
 
-import com.sketchboard.model.UserAccount;
+import com.colaboard.model.UserAccount;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -108,10 +108,10 @@ public class UserAccountService {
     }
 
     private String userIdKey(String userId) {
-        return "sketchboard:user:id:" + userId;
+        return "colaboard:user:id:" + userId;
     }
 
     private String userEmailKey(String email) {
-        return "sketchboard:user:email:" + email;
+        return "colaboard:user:email:" + email;
     }
 }

@@ -1,7 +1,7 @@
-package com.sketchboard.service;
+package com.colaboard.service;
 
-import com.sketchboard.model.CursorMessage;
-import com.sketchboard.model.DrawSegment;
+import com.colaboard.model.CursorMessage;
+import com.colaboard.model.DrawSegment;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;

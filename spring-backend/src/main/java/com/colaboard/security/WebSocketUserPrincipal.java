@@ -1,4 +1,4 @@
-package com.sketchboard.security;
+package com.colaboard.security;
 
 public class WebSocketUserPrincipal extends AuthenticatedUser {
     private final String websocketSessionId;

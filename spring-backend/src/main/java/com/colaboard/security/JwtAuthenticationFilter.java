@@ -1,8 +1,8 @@
-package com.sketchboard.security;
+package com.colaboard.security;
 
-import com.sketchboard.model.UserAccount;
-import com.sketchboard.service.JwtService;
-import com.sketchboard.service.UserAccountService;
+import com.colaboard.model.UserAccount;
+import com.colaboard.service.JwtService;
+import com.colaboard.service.UserAccountService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

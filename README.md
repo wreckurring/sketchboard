@@ -1,6 +1,6 @@
-# Sketchboard
+# colaboard
 
-Sketchboard is a collaborative whiteboard application inspired by Excalidraw. It provides a full-screen drawing surface, live multi-user collaboration over WebSockets, room-based sharing, and Redis-backed whiteboard state replay.
+colaboard is a collaborative whiteboard application inspired by Excalidraw. It provides a full-screen drawing surface, live multi-user collaboration over WebSockets, room-based sharing, and Redis-backed whiteboard state replay.
 
 This repository contains multiple projects, but the active whiteboard stack is:
 
@@ -200,12 +200,12 @@ Redis stores room history and participant presence, and is also used for pub/sub
 
 Keys:
 
-- `sketchboard:room:{roomId}:history`
-- `sketchboard:room:{roomId}:participants`
+- `colaboard:room:{roomId}:history`
+- `colaboard:room:{roomId}:participants`
 
 Topic:
 
-- `sketchboard:room-events`
+- `colaboard:room-events`
 
 ## Current Product Behavior
 

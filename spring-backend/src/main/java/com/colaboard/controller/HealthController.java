@@ -1,4 +1,4 @@
-package com.sketchboard.controller;
+package com.colaboard.controller;
 
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,6 +12,6 @@ public class HealthController {
 
     @GetMapping("/health")
     public Map<String, String> health() {
-        return Map.of("status", "ok", "service", "sketchboard-spring-backend");
+        return Map.of("status", "ok", "service", "colaboard-spring-backend");
     }
 }

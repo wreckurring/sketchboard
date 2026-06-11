@@ -1,13 +1,13 @@
-package com.sketchboard.controller;
+package com.colaboard.controller;
 
-import com.sketchboard.dto.AuthRequest;
-import com.sketchboard.dto.AuthResponse;
-import com.sketchboard.dto.GoogleAuthRequest;
-import com.sketchboard.model.UserAccount;
-import com.sketchboard.security.AuthenticatedUser;
-import com.sketchboard.service.GoogleIdentityService;
-import com.sketchboard.service.JwtService;
-import com.sketchboard.service.UserAccountService;
+import com.colaboard.dto.AuthRequest;
+import com.colaboard.dto.AuthResponse;
+import com.colaboard.dto.GoogleAuthRequest;
+import com.colaboard.model.UserAccount;
+import com.colaboard.security.AuthenticatedUser;
+import com.colaboard.service.GoogleIdentityService;
+import com.colaboard.service.JwtService;
+import com.colaboard.service.UserAccountService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;

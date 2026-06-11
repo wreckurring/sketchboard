@@ -1,6 +1,6 @@
-package com.sketchboard.config;
+package com.colaboard.config;
 
-import com.sketchboard.service.RedisRoomEventSubscriber;
+import com.colaboard.service.RedisRoomEventSubscriber;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -10,7 +10,7 @@ import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 @Configuration
 public class RedisConfig {
 
-    public static final String ROOM_EVENTS_TOPIC = "sketchboard:room-events";
+    public static final String ROOM_EVENTS_TOPIC = "colaboard:room-events";
 
     @Bean
     public ChannelTopic roomEventsTopic() {

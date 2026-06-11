@@ -1,10 +1,10 @@
-package com.sketchboard.controller;
+package com.colaboard.controller;
 
-import com.sketchboard.model.CursorMessage;
-import com.sketchboard.model.DrawSegment;
-import com.sketchboard.model.JoinRoomMessage;
-import com.sketchboard.security.WebSocketUserPrincipal;
-import com.sketchboard.service.RoomService;
+import com.colaboard.model.CursorMessage;
+import com.colaboard.model.DrawSegment;
+import com.colaboard.model.JoinRoomMessage;
+import com.colaboard.security.WebSocketUserPrincipal;
+import com.colaboard.service.RoomService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;

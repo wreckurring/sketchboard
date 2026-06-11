@@ -1,4 +1,4 @@
-package com.sketchboard.dto;
+package com.colaboard.dto;
 
 public class AuthResponse {
     private String token;

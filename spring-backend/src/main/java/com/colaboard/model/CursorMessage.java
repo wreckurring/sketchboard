@@ -1,4 +1,4 @@
-package com.sketchboard.model;
+package com.colaboard.model;
 
 public class CursorMessage {
     private String sessionId;

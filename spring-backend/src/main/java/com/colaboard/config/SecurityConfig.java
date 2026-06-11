@@ -1,6 +1,6 @@
-package com.sketchboard.config;
+package com.colaboard.config;
 
-import com.sketchboard.security.JwtAuthenticationFilter;
+import com.colaboard.security.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

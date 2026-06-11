@@ -1,7 +1,7 @@
-package com.sketchboard.service;
+package com.colaboard.service;
 
-import com.sketchboard.model.CursorMessage;
-import com.sketchboard.model.DrawSegment;
+import com.colaboard.model.CursorMessage;
+import com.colaboard.model.DrawSegment;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -182,11 +182,11 @@ public class RoomService {
     }
 
     private String roomHistoryKey(String roomId) {
-        return "sketchboard:room:" + roomId + ":history";
+        return "colaboard:room:" + roomId + ":history";
     }
 
     private String roomParticipantsKey(String roomId) {
-        return "sketchboard:room:" + roomId + ":participants";
+        return "colaboard:room:" + roomId + ":participants";
     }
 
     public static class SessionInfo {

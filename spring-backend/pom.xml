@@ -11,10 +11,10 @@
     <relativePath />
   </parent>
 
-  <groupId>com.sketchboard</groupId>
-  <artifactId>sketchboard-backend</artifactId>
+  <groupId>com.colaboard</groupId>
+  <artifactId>colaboard-backend</artifactId>
   <version>1.0.0</version>
-  <name>sketchboard-backend</name>
+  <name>colaboard-backend</name>
 
   <properties>
     <java.version>17</java.version>
