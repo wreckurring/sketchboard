@@ -1,5 +1,8 @@
 node_modules/
+client/dist/
 .env
 *.log
-dist/
-.DS_Store
+
+# Maven
+spring-backend/target/
+spring-backend/.mvn/repository/

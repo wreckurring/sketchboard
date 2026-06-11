@@ -1,119 +1,271 @@
 # Sketchboard
 
-A real-time collaborative whiteboard built to explore WebSocket synchronization, canvas rendering optimization, and offline-first progressive web app patterns.
+Sketchboard is a collaborative whiteboard application inspired by Excalidraw. It provides a full-screen drawing surface, live multi-user collaboration over WebSockets, room-based sharing, and Redis-backed whiteboard state replay.
 
-![React](https://img.shields.io/badge/React-18-blue.svg)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)
-![PWA](https://img.shields.io/badge/PWA-Enabled-purple.svg)
+This repository contains multiple projects, but the active whiteboard stack is:
 
----
+- Frontend: `client`
+- Backend: `spring-backend`
+- Redis compose file: `docker-compose.redis.yml`
 
-## Key Features
+The `server` directory contains an older Node.js Socket.IO implementation and is not the active backend for the current app. The `code-judge` directory is a separate project and is unrelated to the whiteboard.
 
-- **Real-time Collaboration** - WebSocket-based cursor tracking and element synchronization
-- **Offline-First PWA** - Service worker caching with background sync
-- **Canvas Optimization** - Viewport culling and requestAnimationFrame rendering
+## Features
+
+- Real-time collaboration with room-based sessions
+- Freehand drawing and shape tools
+- Shareable room links
+- Remote cursors and participant count
+- Zoom, pan, clear board, and PNG export
+- Redis-backed room history and pub/sub fanout
+- Spring Boot STOMP WebSocket backend
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Canvas** | HTML5 Canvas API, Custom rendering engine |
-| **Real-time** | WebSocket (SockJS/STOMP), Shared state sync |
-| **Storage** | IndexedDB, LocalStorage, Service Worker Cache |
-| **Build** | Vite, Tailwind CSS |
-| **Deployment** | Vercel, Docker |
+- React 18
+- Vite
+- Spring Boot 3
+- STOMP over WebSocket
+- Redis
+- Maven
 
-## Architecture
-```
-┌─────────────────────────────────────────────────┐
-│         React Application (PWA)                 │
-│  ┌──────────────┬──────────────┬──────────────┐ │
-│  │ Components   │  Custom Hooks│  Utils       │ │
-│  │ (Toolbar,    │ (useHistory, │ (drawing.js, │ │
-│  │  Canvas,     │  useCollab)  │  export.js)  │ │
-│  │  Modals)     │              │              │ │
-│  └──────────────┴──────────────┴──────────────┘ │
-└────────────┬────────────────────┬────────────────┘
-             │                    │
-    Canvas Rendering      WebSocket Sync
-             │                    │
-┌────────────┴──────┐      ┌──────┴──────────────┐
-│ HTML5 Canvas      │      │ Collaboration API   │
-│ (RAF loop,        │      │ (Cursor broadcast,  │
-│  Viewport cull,   │      │  Element sync,      │
-│  Hand-drawn)      │      │  Presence tracking) │
-└───────────────────┘      └─────────────────────┘
-             │                    │
-      ┌──────┴──────┐      ┌──────┴──────┐
-      │ IndexedDB   │      │ Service     │
-      │ (Auto-save, │      │ Worker      │
-      │  History)   │      │ (Cache API) │
-      └─────────────┘      └─────────────┘
+## Repository Structure
+
+```text
+.
+├── client/                React frontend
+├── spring-backend/        Spring Boot backend
+├── server/                Legacy Node/socket.io backend
+├── code-judge/            Separate unrelated project
+├── docker-compose.redis.yml
+├── package.json
+└── PROJECT_CONTEXT.md
 ```
 
-## Key Challenges Solved
+## Local Development
 
-- Designed viewport-aware rendering to handle 1000+ canvas elements without frame drops.
-- Implemented conflict-free collaborative editing with last-write-wins CRDT semantics.
-- Built custom undo/redo stack with state snapshots.
-- Achieved 60fps canvas performance with RAF throttling and dirty region tracking.
+### Prerequisites
 
-## Scalability Design
+- Node.js 18 or later
+- Java 17
+- Maven
+- Redis
 
-- Stateless collaboration via URL-based session IDs and shared storage API.
-- Viewport culling reduces render load by 70% for dense canvases (tested with 5000+ elements).
-- Service worker caching enables instant load times and full offline functionality.
+If Docker Desktop is available, Redis can be started through Docker Compose. Otherwise, run Redis manually on `localhost:6379`.
 
-## Performance Optimizations
+### Install Dependencies
 
-- **Rendering:** requestAnimationFrame batching, viewport culling, dirty rectangle optimization
-- **Memory:** Incremental element rendering, lazy loading for off-screen content
-- **Storage:** Compression for exported files, IndexedDB for large datasets
-
-## Project Structure
-```
-sketchboard/
-├── frontend/             # React/Vite SPA (Deployed on Vercel)
-│   ├── public/           # PWA Assets & Service Worker
-│   ├── src/              # Components, Hooks, Utils
-│   └── vercel.json       # SPA Routing & Cache Invalidation
-├── backend/              # Node.js & Socket.IO (Deployed on Render)
-│   ├── utils/            # Redis Pub/Sub Logic
-│   └── server.js         # Real-time event orchestration
-├── docker-compose.yml    # Root orchestration for Backend & Redis
-└── README.md
-```
-
-## Quick Start
-```bash
-# Clone and run
-git clone https://github.com/wreckurring/sketchboard.git
-cd sketchboard
+```powershell
 npm install
-npm run dev
-
-# Access at http://localhost:5173
+npm install --prefix client
 ```
 
-## Future System Design Improvements
+### Start Redis
 
-- **WebSocket Clustering** - Redis pub/sub for multi-server collaboration
-- **Operational Transform** - Handle concurrent edits with OT algorithm
-- **Vector Layers** - Z-index management with layer groups
-- **Plugin System** - Extensible architecture for custom tools
-- **Analytics** - Canvas usage metrics, performance monitoring
+```powershell
+npm run redis:up
+```
 
-## Testing
+If Docker is not available, start Redis locally by another method before launching the backend.
 
-- Unit tests for drawing utilities and state management
-- Integration tests for collaboration sync
-- E2E tests for export workflows with Playwright
+### Start Frontend and Backend
 
-## License
+```powershell
+npm run dev
+```
 
-MIT License
+This starts:
 
----
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8080`
 
-<p align="center">Built to explore real-time collaboration patterns and canvas optimization techniques.</p>
+### Useful Commands
+
+```powershell
+npm run spring
+npm run build
+npm run build:spring
+npm run redis:down
+```
+
+## Environment Variables
+
+### Frontend
+
+Frontend variables are read by Vite from `client/.env` or deployment environment settings.
+
+Local development:
+
+```env
+VITE_API_URL=http://localhost:8080
+VITE_WS_URL=
+```
+
+Notes:
+
+- `VITE_WS_URL` can be omitted locally. The frontend can use the Vite dev proxy for `/ws`.
+- In production, `VITE_WS_URL` should be the real backend WebSocket URL.
+
+Production example:
+
+```env
+VITE_API_URL=https://your-backend-domain.com
+VITE_WS_URL=wss://your-backend-domain.com/ws
+```
+
+### Backend
+
+Spring reads environment variables from the host or deployment platform.
+
+Common backend variables:
+
+```env
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_SSL=true
+JWT_SECRET=replace-with-a-long-random-secret
+JWT_EXPIRATION_MINUTES=120
+GOOGLE_CLIENT_ID=
+FRONTEND_URL=http://localhost:5173
+DB_URL=
+DB_USERNAME=
+DB_PASSWORD=
+```
+
+Important notes:
+
+- `FRONTEND_URL` must be set correctly in production. It is used for CORS and WebSocket origin handling.
+- If your frontend is hosted on Vercel and backend on Render, `FRONTEND_URL` should be your Vercel app URL.
+- Hosted Redis providers often require `REDIS_SSL=true`.
+
+## Deployment
+
+### Vercel Frontend + Render Backend
+
+Vercel frontend environment:
+
+```env
+VITE_API_URL=https://your-render-backend.onrender.com
+VITE_WS_URL=wss://your-render-backend.onrender.com/ws
+```
+
+Render backend environment:
+
+```env
+FRONTEND_URL=https://your-vercel-app.vercel.app
+REDIS_HOST=...
+REDIS_PORT=...
+REDIS_PASSWORD=...
+REDIS_SSL=true
+JWT_SECRET=...
+```
+
+Deployment checklist:
+
+1. Set the Vercel frontend variables to the Render backend URL.
+2. Set `FRONTEND_URL` on Render to the Vercel frontend URL.
+3. Configure Redis connection variables on Render.
+4. Redeploy both services after changing environment variables.
+
+## Collaboration Architecture
+
+The collaboration flow uses STOMP over WebSocket with Redis-backed state sharing.
+
+### WebSocket Endpoint
+
+- `/ws`
+
+### Client Publish Destinations
+
+- `/app/room/{roomId}/join`
+- `/app/room/{roomId}/draw`
+- `/app/room/{roomId}/cursor`
+- `/app/room/{roomId}/clear`
+
+### Client Subscriptions
+
+- `/user/queue/session`
+- `/user/queue/canvas-state`
+- `/topic/room/{roomId}/state`
+- `/topic/room/{roomId}/draw`
+- `/topic/room/{roomId}/cursor`
+- `/topic/room/{roomId}/cursor-leave`
+- `/topic/room/{roomId}/users`
+- `/topic/room/{roomId}/clear`
+
+### Redis Usage
+
+Redis stores room history and participant presence, and is also used for pub/sub event distribution across backend instances.
+
+Keys:
+
+- `sketchboard:room:{roomId}:history`
+- `sketchboard:room:{roomId}:participants`
+
+Topic:
+
+- `sketchboard:room-events`
+
+## Current Product Behavior
+
+- Opening the app creates or resumes a room immediately
+- Room IDs are stored in the `room` query parameter
+- Users can join by room code or full invite link
+- Drawing tools include pen, line, arrow, rectangle, ellipse, diamond, and eraser
+- Mouse wheel pans the canvas
+- `Ctrl` plus wheel zooms
+- `Space` plus drag pans
+- The canvas supports export to PNG
+
+## Authentication Status
+
+Authentication code exists in the backend, but the active whiteboard flow currently allows anonymous guest collaboration so the whiteboard can be used without signing in.
+
+Relevant backend components include:
+
+- `AuthController`
+- `JwtService`
+- `UserAccountService`
+- `GoogleIdentityService`
+- `SecurityConfig`
+- `WebSocketAuthChannelInterceptor`
+
+## Troubleshooting
+
+### WebSocket Connection Fails
+
+Check the following:
+
+1. Confirm the backend is reachable at `http://localhost:8080/health` locally or at your deployed backend URL in production.
+2. Confirm Redis is running before starting Spring.
+3. Confirm `VITE_API_URL` and `VITE_WS_URL` do not point to `localhost` in production.
+4. Confirm `FRONTEND_URL` on the backend matches the deployed frontend origin.
+5. Confirm your hosting platform supports WebSocket upgrades on `/ws`.
+
+### Redis Startup Fails
+
+If `npm run redis:up` fails with a Docker daemon error, Docker Desktop is not running. Start Docker Desktop first or run Redis locally without Docker.
+
+### Spring Does Not Start
+
+The backend depends on Redis connectivity at startup. If Redis is unavailable, the application may fail before the WebSocket endpoint becomes available.
+
+## Verification
+
+The following commands are useful for quick verification:
+
+```powershell
+npm run build
+cd spring-backend
+mvn -q -DskipTests compile
+```
+
+## Next Improvements
+
+- Undo and redo
+- Selection and resizing
+- Text tool
+- Improved mobile toolbar
+- Room metadata and ownership
+- Integration tests for whiteboard collaboration flows
